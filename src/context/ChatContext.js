@@ -22,7 +22,7 @@ export const ChatProvider = ({ children }) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   
-  const { isAuthenticated, loading: authLoading } = useAuth();
+  const { user, isAuthenticated, loading: authLoading } = useAuth();
 
   // Lấy danh sách conversation
   const loadConversations = useCallback(async () => {
@@ -44,7 +44,7 @@ export const ChatProvider = ({ children }) => {
             avatar: item.chatRoomAvatar || null,
             lastMessage: item.lastMessage ? item.lastMessage.content : 'Chưa có tin nhắn',
             timestamp: item.lastMessage ? chatService.formatMessageTime(item.lastMessage.sentAt) : '',
-            isGroup: item.roomType === 'GROUP' || item.roomType === 'PUBLIC',
+            isGroup:item.roomType === 'PUBLIC', 
             memberCount: item.memberCount,
             unreadCount: item.readCount || 0,
             participants: [] // Có thể thêm thông tin participants nếu cần
@@ -92,51 +92,40 @@ export const ChatProvider = ({ children }) => {
   }, []);
 
   // Lấy tin nhắn cho một conversation
-  const loadMessages = useCallback(async (conversationId) => {
+  // Load messages với phân trang, nối tin nhắn cũ vào đầu mảng
+  const loadMessages = useCallback(async (conversationId, page = 0, size = 10) => {
     try {
       setLoading(true);
-      console.log('ChatContext - Loading messages for conversation:', conversationId);
-      
-      const response = await chatService.getMessagesByIdConversation(conversationId, 0, 50);
+      console.log('ChatContext - Loading messages for conversation:', conversationId, 'page:', page);
+      const response = await chatService.getMessagesByIdConversation(conversationId, page, size);
       console.log('ChatContext - Messages API response:', response);
-      
       if (response && response.result && response.result.data) {
-        const currentUserName = chatService.getCurrentUserName();
-        console.log('ChatContext - Current user name for comparison:', currentUserName);
-        
-        const transformedMessages = response.result.data.map(msg => {
-          console.log('ChatContext - Processing message:', msg);
-          console.log('ChatContext - Message senderUsername:', msg.senderUsername);
-          console.log('ChatContext - Current user:', currentUserName);
-          
-          const isOwn = msg.senderUsername?.toLowerCase() === currentUserName?.toLowerCase();
-          console.log('ChatContext - Is own message?', isOwn);
-          
-          return {
-            id: msg.messageId,
-            text: msg.content,
-            senderId: msg.senderId,
-            senderName: msg.senderName,
-            senderUsername: msg.senderUsername,
-            senderAvatar: msg.senderAvatar,
-            timestamp: new Date(msg.sentAt),
-            messageType: msg.messageType,
-            messageStatus: msg.messageStatus,
-            readCount: msg.readCount,
-            lastRead: msg.lastRead,
-            isOwn: isOwn
-          };
-        });
-        
-        console.log('ChatContext - Transformed messages:', transformedMessages);
+        const currentUserName = chatService.getCurrentUserName(user);
+        const transformedMessages = response.result.data.map(msg => ({
+          id: msg.messageId,
+          text: msg.content,
+          senderId: msg.senderId,
+          senderName: msg.senderName,
+          senderUsername: msg.senderUsername,
+          senderAvatar: msg.senderAvatar,
+          timestamp: new Date(msg.sentAt),
+          messageType: msg.messageType,
+          messageStatus: msg.messageStatus,
+          readCount: msg.readCount,
+          lastRead: msg.lastRead,
+          isOwn: msg.senderUsername?.toLowerCase() === currentUserName?.toLowerCase()
+        }));
+        // Reverse messages để tin nhắn cũ nhất ở trên, mới nhất ở dưới
+        const sortedMessages = transformedMessages.reverse();
         
         setMessages(prev => ({
           ...prev,
-          [conversationId]: transformedMessages
+          [conversationId]: page === 0
+            ? sortedMessages  // Page 0: tin nhắn mới nhất (đảo ngược để cũ nhất ở trên)
+            : [...sortedMessages, ...(prev[conversationId] || [])]  // Page > 0: tin nhắn cũ hơn thêm vào đầu
         }));
-        
         return {
-          messages: transformedMessages,
+          messages: sortedMessages,
           pagination: {
             page: response.result.page,
             totalPages: response.result.totalPages,
@@ -148,66 +137,6 @@ export const ChatProvider = ({ children }) => {
       }
     } catch (error) {
       console.error('Error loading messages:', error);
-      // Mock messages với cả own và other messages để test layout
-      const mockMessages = [
-        {
-          id: 'mock-1',
-          text: "Hello! How are you doing today?",
-          senderId: 'other-user-id',
-          senderName: 'John',
-          senderUsername: 'john123', // Username khác với current user
-          timestamp: new Date(Date.now() - 3600000),
-          messageType: 'TEXT',
-          messageStatus: 'SENT',
-          readCount: 0,
-          lastRead: false,
-          isOwn: false
-        },
-        {
-          id: 'mock-2',
-          text: "I'm doing great! Thanks for asking.",
-          senderId: 'current-user-id',
-          senderName: 'Vũ',
-          senderUsername: 'vu1', // Username giống với current user
-          timestamp: new Date(Date.now() - 3500000),
-          messageType: 'TEXT',
-          messageStatus: 'SENT',
-          readCount: 0,
-          lastRead: true,
-          isOwn: true
-        },
-        {
-          id: 'mock-3',
-          text: "What are you up to today?",
-          senderId: 'other-user-id',
-          senderName: 'John',
-          senderUsername: 'john123',
-          timestamp: new Date(Date.now() - 3000000),
-          messageType: 'TEXT',
-          messageStatus: 'SENT',
-          readCount: 0,
-          lastRead: false,
-          isOwn: false
-        },
-        {
-          id: 'mock-4',
-          text: "Just working on some projects. You?",
-          senderId: 'current-user-id',
-          senderName: 'Vũ',
-          senderUsername: 'vu1',
-          timestamp: new Date(Date.now() - 2500000),
-          messageType: 'TEXT',
-          messageStatus: 'SENT',
-          readCount: 0,
-          lastRead: true,
-          isOwn: true
-        }
-      ];
-      
-      setMessages(prev => ({
-        ...prev,
-        [conversationId]: mockMessages
-      }));
     } finally {
       setLoading(false);
     }
@@ -217,26 +146,22 @@ export const ChatProvider = ({ children }) => {
   const sendMessage = useCallback(async (conversationId, messageContent) => {
     try {
       const messageData = {
-        chatRoomId: conversationId,
         content: messageContent,
-        senderName: chatService.getCurrentUserName(),
         messageType: 'TEXT'
       };
-      
       console.log('ChatContext - Sending message:', messageData);
-      const response = await chatService.sendMessage(messageData);
+      const response = await chatService.sendMessage(conversationId, messageData);
       console.log('ChatContext - Send message response:', response);
-      
       if (response) {
         // Thêm tin nhắn vào state local
         const newMessage = {
-          id: response.messageId || Date.now(),
-          text: messageContent,
-          senderId: response.senderId || 'me',
-          senderName: chatService.getCurrentUserName(),
-          senderUsername: chatService.getCurrentUserName(),
-          timestamp: new Date(),
-          messageType: 'TEXT',
+          id: response.result?.messageId || Date.now(),
+          text: response.result?.content || messageContent,
+          senderId: response.result?.senderId || 'me',
+          senderName: response.result?.senderName || chatService.getCurrentUserName(user),
+          senderUsername: response.result?.senderUsername || chatService.getCurrentUserName(user),
+          timestamp: response.result?.sentAt ? new Date(response.result.sentAt) : new Date(),
+          messageType: response.result?.messageType || 'TEXT',
           messageStatus: 'SENT',
           readCount: 0,
           lastRead: true,
@@ -309,17 +234,18 @@ export const ChatProvider = ({ children }) => {
             messageStatus: msg.messageStatus,
             readCount: msg.readCount,
             lastRead: msg.lastRead,
-            isOwn: msg.senderUsername === chatService.getCurrentUserName()
+            isOwn: msg.senderUsername === chatService.getCurrentUserName(user)
           }));
           
-          // Prepend to existing messages (older messages)
+          // Reverse và thêm vào đầu (tin nhắn cũ hơn)
+          const reversedMessages = transformedMessages.reverse();
           setMessages(prev => ({
             ...prev,
-            [conversationId]: [...transformedMessages, ...(prev[conversationId] || [])]
+            [conversationId]: [...reversedMessages, ...(prev[conversationId] || [])]
           }));
           
           return {
-            messages: transformedMessages,
+            messages: reversedMessages,
             pagination: {
               page: response.result.page,
               totalPages: response.result.totalPages,

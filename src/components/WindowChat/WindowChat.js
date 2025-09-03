@@ -1,33 +1,66 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
+import { FaSmile, FaImage, FaPaperclip, FaMicrophone, FaPaperPlane } from 'react-icons/fa';
 import { useChat } from '../../context/ChatContext';
 import Avatar from '../shared/Avatar';
+import DateSeparator from '../shared/DateSeparator';
+import { formatMessageTime, groupMessagesByDate } from '../../utils/messageUtils';
+import '../../assets/css/WindowChat.css';
 
 const WindowChat = ({ conversation, currentUser, onToggleInfoPanel, isInfoPanelOpen }) => {
   const [newMessage, setNewMessage] = useState('');
   const messagesEndRef = useRef(null);
+  const chatMessagesRef = useRef(null);
+  const prevScrollHeightRef = useRef(0);
+  const [page, setPage] = useState(0);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const [hasNextPage, setHasNextPage] = useState(true);
+  const [isInitialLoading, setIsInitialLoading] = useState(false);
   const { messages, loadMessages, sendMessage } = useChat();
 
-  // Lấy tin nhắn cho conversation hiện tại
-  const currentMessages = conversation ? messages[conversation.id] || [] : [];
+  // Lấy tin nhắn cho conversation hiện tại với dependency
+  const currentMessages = useMemo(() => {
+    const msgs = conversation ? messages[conversation.id] || [] : [];
+    console.log('WindowChat - Current messages count:', msgs.length);
+    return msgs;
+  }, [conversation, messages]);
 
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  };
-
-  useEffect(() => {
-    scrollToBottom();
+  // Group messages by date để hiển thị date separators
+  const groupedMessages = useMemo(() => {
+    return groupMessagesByDate(currentMessages);
   }, [currentMessages]);
 
-  // Load messages khi conversation thay đổi
+  // Khi conversation thay đổi, load messages và scroll xuống cuối
   useEffect(() => {
     if (conversation && conversation.id) {
-      console.log('WindowChat - Loading messages for conversation:', conversation.id);
-      loadMessages(conversation.id);
+      setIsInitialLoading(true);
+      setPage(0);
+      setHasNextPage(true);
+      loadMessages(conversation.id, 0).then((result) => {
+        if (result && result.pagination) {
+          setHasNextPage(result.pagination.hasNext);
+        }
+        setIsInitialLoading(false);
+      }).catch(() => {
+        setIsInitialLoading(false);
+      });
+    } else {
+      // Reset loading state khi không có conversation
+      setIsInitialLoading(false);
     }
   }, [conversation, loadMessages]);
 
-  console.log('WindowChat - Current conversation:', conversation);
-  console.log('WindowChat - Current messages:', currentMessages);
+  // Scroll về cuối khi vừa vào chatroom (page = 0), giữ vị trí khi lazy loading
+  useEffect(() => {
+    if (chatMessagesRef.current && page === 0) {
+      chatMessagesRef.current.scrollTop = chatMessagesRef.current.scrollHeight;
+    }
+    // Nếu vừa load thêm trang cũ, giữ nguyên vị trí scroll
+    if (chatMessagesRef.current && page > 0 && prevScrollHeightRef.current) {
+      const newScrollHeight = chatMessagesRef.current.scrollHeight;
+      chatMessagesRef.current.scrollTop = newScrollHeight - prevScrollHeightRef.current;
+      prevScrollHeightRef.current = 0;
+    }
+  }, [conversation, currentMessages, page]);
 
   const handleSendMessage = async (e) => {
     e.preventDefault();
@@ -35,18 +68,17 @@ const WindowChat = ({ conversation, currentUser, onToggleInfoPanel, isInfoPanelO
       try {
         await sendMessage(conversation.id, newMessage.trim());
         setNewMessage('');
+        // Force re-render để cập nhật UI ngay lập tức
+        setTimeout(() => {
+          if (chatMessagesRef.current) {
+            chatMessagesRef.current.scrollTop = chatMessagesRef.current.scrollHeight;
+          }
+        }, 100);
       } catch (error) {
         console.error('Error sending message:', error);
         // Có thể hiển thị notification lỗi ở đây
       }
     }
-  };
-
-  const formatTime = (timestamp) => {
-    return new Date(timestamp).toLocaleTimeString([], { 
-      hour: '2-digit', 
-      minute: '2-digit' 
-    });
   };
 
   if (!conversation) {
@@ -149,97 +181,146 @@ const WindowChat = ({ conversation, currentUser, onToggleInfoPanel, isInfoPanelO
         </div>
       </div>
 
-      <div className="chat-messages">
-        {currentMessages.map((message) => (
-          <div key={message.messageId || message.id} className={`message ${message.isOwn ? 'own' : ''}`}>
-            {!message.isOwn && (
-              <div className="message-avatar">
-                <img 
-                  src={message.senderAvatar || '/public/sidebar/boy.png'} 
-                  alt={message.senderName || 'Avatar'}
-                  style={{
-                    width: '32px',
-                    height: '32px',
-                    borderRadius: '50%',
-                    objectFit: 'cover',
-                    marginRight: '8px',
-                    flexShrink: 0
-                  }}
-                  onError={(e) => {
-                    e.target.src = '/public/sidebar/boy.png';
-                  }}
-                />
-              </div>
-            )}
-            <div className="message-content">
-              {!message.isOwn && conversation.isGroup && (
-                <div style={{ 
-                  fontSize: '12px', 
-                  color: '#3b82f6', 
-                  marginBottom: '4px',
-                  fontWeight: '500'
-                }}>
-                  {message.senderName}
-                </div>
-              )}
-              <div>{message.content || message.text}</div>
-              <div className="message-time">
-                {formatTime(message.sentAt || message.timestamp)}
-              </div>
-            </div>
+      <div className="chat-messages" ref={chatMessagesRef} style={{ overflowY: 'auto', height: '400px' }}
+        onScroll={async (e) => {
+          if (e.target.scrollTop === 0 && !isLoadingMore && hasNextPage && currentMessages.length > 0) {
+            prevScrollHeightRef.current = chatMessagesRef.current.scrollHeight;
+            setIsLoadingMore(true);
+            const nextPage = page + 1;
+            const result = await loadMessages(conversation.id, nextPage);
+            if (result && result.pagination) {
+              setHasNextPage(result.pagination.hasNext);
+            }
+            setPage(nextPage);
+            setIsLoadingMore(false);
+          }
+        }}>
+        {isInitialLoading ? (
+          // Hiển thị loading spinner khi đang load messages lần đầu
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            height: '300px',
+            color: '#6b7280'
+          }}>
+            <div style={{
+              border: '3px solid #f3f4f6',
+              borderTop: '3px solid #3b82f6',
+              borderRadius: '50%',
+              width: '40px',
+              height: '40px',
+              animation: 'spin 1s linear infinite'
+            }}></div>
           </div>
-        ))}
-        <div ref={messagesEndRef} />
+        ) : currentMessages.length === 0 ? (
+          <div style={{
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            height: '300px',
+            marginTop: '40px',
+            background: 'rgba(255,255,255,0.8)',
+            borderRadius: '16px',
+            boxShadow: '0 2px 8px rgba(0,0,0,0.05)',
+            maxWidth: '400px',
+            marginLeft: 'auto',
+            marginRight: 'auto'
+          }}>
+            <Avatar src={conversation.avatar} alt={conversation.title} size="large" />
+            <h3 style={{ margin: '16px 0 8px', fontWeight: 600 }}>{conversation.title}</h3>
+            <p style={{ color: '#6b7280', marginBottom: '8px', textAlign: 'center' }}>{conversation.description || 'Hãy bắt đầu cùng nhau chia sẻ những điều thú vị!'}</p>
+            {conversation.isGroup ? (
+              <p style={{ color: '#3b82f6', fontWeight: 500 }}>
+                {conversation.memberCount} thành viên
+              </p>
+            ) : (
+              <p style={{ color: '#3b82f6', fontWeight: 500 }}>
+                Gửi tin nhắn để bắt đầu đoạn chat
+              </p>
+            )}
+          </div>
+        ) : (
+          <>
+            {groupedMessages.map((item, index) => (
+              item.type === 'date-separator' ? (
+                <DateSeparator key={`date-${index}`} date={item.date} />
+              ) : (
+                <div key={item.messageId || item.id} className={`message ${item.isOwn ? 'own' : ''}`}>
+                  {!item.isOwn && (
+                    <div className="message-avatar">
+                      <img 
+                        src={item.senderAvatar || '/public/sidebar/boy.png'} 
+                        alt={item.senderName || 'Avatar'}
+                        style={{
+                          width: '32px',
+                          height: '32px',
+                          borderRadius: '50%',
+                          objectFit: 'cover',
+                          marginRight: '8px',
+                          flexShrink: 0
+                        }}
+                        onError={(e) => {
+                          e.target.src = '/public/sidebar/boy.png';
+                        }}
+                      />
+                    </div>
+                  )}
+                  <div className="message-content">
+                    {!item.isOwn && conversation.isGroup && (
+                      <div style={{ 
+                        fontSize: '12px', 
+                        color: '#3b82f6', 
+                        marginBottom: '4px',
+                        fontWeight: '500'
+                      }}>
+                        {item.senderName}
+                      </div>
+                    )}
+                    <div>{item.content || item.text}</div>
+                    <div className="message-time">
+                      {formatMessageTime(item.sentAt || item.timestamp)}
+                    </div>
+                  </div>
+                </div>
+              )
+            ))}
+            <div ref={messagesEndRef} />
+          </>
+          
+        )}
+
       </div>
 
       <div className="chat-input-container">
+        {/* Thanh icon riêng phía trên thanh nhập */}
+        <div className="chat-toolbar" style={{ display: 'flex', alignItems: 'center', gap: '16px', padding: '8px 0', borderBottom: '1px solid #f3f4f6', marginBottom: '4px' }}>
+          <button type="button" style={{ background: 'none', border: 'none', padding: '4px', cursor: 'pointer', display: 'flex', alignItems: 'center' }}>
+            <FaSmile size={22} color="#6b7280" />
+          </button>
+          <button type="button" style={{ background: 'none', border: 'none', padding: '4px', cursor: 'pointer', display: 'flex', alignItems: 'center' }}>
+            <FaImage size={22} color="#6b7280" />
+          </button>
+          <button type="button" style={{ background: 'none', border: 'none', padding: '4px', cursor: 'pointer', display: 'flex', alignItems: 'center' }}>
+            <FaPaperclip size={22} color="#6b7280" />
+          </button>
+          <button type="button" style={{ background: 'none', border: 'none', padding: '4px', cursor: 'pointer', display: 'flex', alignItems: 'center' }}>
+            <FaMicrophone size={22} color="#6b7280" />
+          </button>
+        </div>
         <form onSubmit={handleSendMessage}>
-          <div className="chat-input-wrapper">
-            <button 
-              type="button"
-              style={{
-                background: 'none',
-                border: 'none',
-                padding: '4px',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center'
-              }}
-            >
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="#6b7280">
-                <path d="M9 11H7v2h2v-2zm4 0h-2v2h2v-2zm4 0h-2v2h2v-2zm2-7h-1V2h-2v2H8V2H6v2H5c-1.1 0-1.99.9-1.99 2L3 20c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 16H5V9h14v11z"/>
-              </svg>
-            </button>
+          <div className="chat-input-wrapper" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <input
               type="text"
               placeholder="Type a message..."
               className="chat-input"
               value={newMessage}
               onChange={(e) => setNewMessage(e.target.value)}
+              style={{ flex: 1 }}
             />
-            <button 
-              type="button"
-              style={{
-                background: 'none',
-                border: 'none',
-                padding: '4px',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center'
-              }}
-            >
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="#6b7280">
-                <path d="M14,2H6A2,2 0 0,0 4,4V20A2,2 0 0,0 6,22H18A2,2 0 0,0 20,20V8L14,2M18,20H6V4H13V9H18V20Z"/>
-              </svg>
-            </button>
-            <button
-              type="submit"
-              className="chat-send-button"
-              disabled={!newMessage.trim()}
-            >
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
-                <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/>
-              </svg>
+            <button type="submit" style={{ background: 'none', border: 'none', padding: '4px', cursor: 'pointer', display: 'flex', alignItems: 'center' }} disabled={!newMessage.trim()}>
+              <FaPaperPlane size={22} color="#3b82f6" />
             </button>
           </div>
         </form>

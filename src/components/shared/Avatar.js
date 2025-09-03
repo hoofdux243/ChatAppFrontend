@@ -1,4 +1,5 @@
 import React from 'react';
+import '../../assets/css/Avatar.css';
 
 const Avatar = ({ src, alt = "Avatar", size = "medium", onClick }) => {
   const getDefaultAvatar = () => {

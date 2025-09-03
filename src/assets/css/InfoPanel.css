@@ -1,0 +1,31 @@
+/* InfoPanel Component Styles */
+.info-panel {
+  width: 300px;
+  background-color: white;
+  border-left: 1px solid #e5e7eb;
+  padding: 20px;
+}
+
+.info-panel-avatar {
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  margin: 0 auto 16px;
+  display: block;
+  object-fit: cover;
+}
+
+.info-panel-name {
+  text-align: center;
+  font-size: 18px;
+  font-weight: 600;
+  color: #1f2937;
+  margin: 0 0 8px 0;
+}
+
+.info-panel-status {
+  text-align: center;
+  color: #6b7280;
+  font-size: 14px;
+  margin: 0 0 24px 0;
+}

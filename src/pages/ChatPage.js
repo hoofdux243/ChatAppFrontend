@@ -1,26 +1,29 @@
 import React, { useState, useEffect } from 'react';
 import { useChat } from '../context/ChatContext';
+import { useAuth } from '../hooks/useAuth';
 import Sidebar from '../components/Sidebar/Sidebar';
 import ChatList from '../components/ChatList/ChatList';
 import WindowChat from '../components/WindowChat/WindowChat';
 import InfoPanel from '../components/InfoPanel/InfoPanel';
-import '../assets/css/ChatMain.css';
+import '../assets/css/ChatPage.css';
 
 const ChatPage = () => {
   const [currentUser, setCurrentUser] = useState(null);
   const [isInfoPanelOpen, setIsInfoPanelOpen] = useState(false);
   const { selectedConversation, setSelectedConversation } = useChat();
+  const { user } = useAuth(); // Lấy user từ context
 
   useEffect(() => {
-    // Get current user from localStorage or API
-    const user = JSON.parse(localStorage.getItem('user') || '{}');
-    setCurrentUser({
-      id: user.id || 'me',
-      username: user.username || 'Current User',
-      email: user.email || 'user@example.com',
-      avatar: user.avatar || null
-    });
-  }, []);
+    // Sử dụng user từ auth context
+    if (user) {
+      setCurrentUser({
+        id: user.id || 'me',
+        username: user.username || user.name || 'Current User',
+        email: user.email || 'user@example.com',
+        avatar: user.avatar || null
+      });
+    }
+  }, [user]); // Dependency là user từ context
 
   const handleSelectConversation = (conversation) => {
     setSelectedConversation(conversation);

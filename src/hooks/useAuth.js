@@ -1,6 +1,5 @@
-import { useReducer, useEffect, createContext, useContext, useRef } from 'react';
+import { useReducer, createContext, useContext } from 'react';
 import apiService from '../services/apiService';
-import StorageService from '../services/storageService';
 
 // Auth action types
 const AUTH_ACTIONS = {
@@ -12,11 +11,11 @@ const AUTH_ACTIONS = {
   CLEAR_ERROR: 'CLEAR_ERROR'
 };
 
-// Initial auth state
+// Initial auth state - Đơn giản, chỉ lưu trong memory
 const initialState = {
   user: null,
   isAuthenticated: false,
-  loading: true,
+  loading: false,
   error: null,
   token: null
 };
@@ -31,7 +30,7 @@ const authReducer = (state, action) => {
       };
 
     case AUTH_ACTIONS.LOGIN_SUCCESS:
-      const newState = {
+      return {
         ...state,
         user: action.payload.user,
         token: action.payload.token,
@@ -39,8 +38,6 @@ const authReducer = (state, action) => {
         loading: false,
         error: null
       };
-      console.log('Auth reducer - LOGIN_SUCCESS new state:', newState);
-      return newState;
 
     case AUTH_ACTIONS.LOGIN_FAILURE:
       return {
@@ -54,19 +51,14 @@ const authReducer = (state, action) => {
 
     case AUTH_ACTIONS.LOGOUT:
       return {
-        ...state,
-        user: null,
-        token: null,
-        isAuthenticated: false,
-        loading: false,
-        error: null
+        ...initialState
       };
 
     case AUTH_ACTIONS.SET_USER:
       return {
         ...state,
         user: action.payload,
-        isAuthenticated: !!action.payload,
+        isAuthenticated: true,
         loading: false
       };
 
@@ -84,98 +76,22 @@ const authReducer = (state, action) => {
 // Create Auth Context
 const AuthContext = createContext();
 
-// Auth Provider Component
+// Auth Provider Component - Đơn giản, không có localStorage
 export const AuthProvider = ({ children }) => {
   const [state, dispatch] = useReducer(authReducer, initialState);
-  const isLoggingOutRef = useRef(false); // Track if logout is in progress
-
-  // Check if user is authenticated on app load
-  useEffect(() => {
-    const checkAuth = async () => {
-      try {
-        dispatch({ type: AUTH_ACTIONS.SET_LOADING, payload: true });
-        
-        const token = StorageService.getToken();
-        const userInfo = StorageService.getUserInfo();
-
-        if (token && userInfo) {
-          // Set token in API service
-          apiService.setToken(token);
-          
-          // Try to verify token with server (optional)
-          try {
-            const verifiedUser = await apiService.getUserProfile();
-            dispatch({ 
-              type: AUTH_ACTIONS.LOGIN_SUCCESS, 
-              payload: { 
-                user: verifiedUser, 
-                token 
-              } 
-            });
-          } catch (error) {
-            // Token might be expired, use stored user info
-            dispatch({ 
-              type: AUTH_ACTIONS.SET_USER, 
-              payload: userInfo 
-            });
-          }
-        } else {
-          dispatch({ type: AUTH_ACTIONS.SET_LOADING, payload: false });
-        }
-      } catch (error) {
-        console.error('Auth check failed:', error);
-        // Clear invalid data
-        StorageService.clearAll();
-        dispatch({ type: AUTH_ACTIONS.LOGOUT });
-      }
-    };
-
-    // Listen for logout events from axios interceptor
-    const handleLogout = () => {
-      console.log('Auth logout event received');
-      StorageService.clearAll();
-      apiService.clearToken();
-      dispatch({ type: AUTH_ACTIONS.LOGOUT });
-      isLoggingOutRef.current = false; // Reset flag
-    };
-
-    window.addEventListener('auth:logout', handleLogout);
-    checkAuth();
-
-    return () => {
-      window.removeEventListener('auth:logout', handleLogout);
-    };
-  }, []); // Remove state dependency to prevent re-creating the effect
 
   // Login function
-  const login = async (credentials, rememberMe = false) => {
+  const login = async (credentials) => {
     try {
       dispatch({ type: AUTH_ACTIONS.SET_LOADING, payload: true });
       dispatch({ type: AUTH_ACTIONS.CLEAR_ERROR });
 
-      console.log('Starting login process...');
       const response = await apiService.login(credentials);
-      console.log('Login API response:', response);
       
-      if (response.access_token) {
-        // Store token with preference (session/persistent)
-        StorageService.setToken(response.access_token, rememberMe);
+      if (response && response.access_token && response.user) {
+        // Chỉ set token trong API service, không lưu persistent
+        apiService.setToken(response.access_token);
         
-        // Store refresh token if provided
-        if (response.refresh_token) {
-          StorageService.setRefreshToken(response.refresh_token);
-        }
-
-        // Store user info
-        if (response.user) {
-          StorageService.setUserInfo(response.user);
-        }
-
-        console.log('Dispatching LOGIN_SUCCESS with:', { 
-          user: response.user, 
-          token: response.access_token 
-        });
-
         dispatch({ 
           type: AUTH_ACTIONS.LOGIN_SUCCESS, 
           payload: { 
@@ -183,24 +99,34 @@ export const AuthProvider = ({ children }) => {
             token: response.access_token 
           } 
         });
-
-        console.log('Login successful, returning result');
+        
         return { success: true, data: response };
+      } else {
+        throw new Error('Invalid response format');
       }
-
-      throw new Error('Không nhận được token từ server');
     } catch (error) {
-      console.error('Login error in useAuth:', error);
-      const errorMessage = error.message || 'Đăng nhập thất bại';
-      dispatch({ 
-        type: AUTH_ACTIONS.LOGIN_FAILURE, 
-        payload: errorMessage 
-      });
+      console.error('Login error:', error);
+      
+      // Extract error message từ backend response - hiển thị trực tiếp
+      let errorMessage = 'Đăng nhập thất bại';
+      
+      if (error.message) {
+        // Custom error từ apiService (backend message)
+        errorMessage = error.message;
+      } else if (error.response?.data?.message) {
+        // Backup case - direct backend response
+        errorMessage = error.response.data.message;
+      } else if (error.response?.data?.error) {
+        // Alternative error field
+        errorMessage = error.response.data.error;
+      }
+      
+      dispatch({ type: AUTH_ACTIONS.LOGIN_FAILURE, payload: errorMessage });
       return { success: false, error: errorMessage };
     }
   };
 
-  // Logout function
+  // Logout function - Đơn giản
   const logout = async () => {
     try {
       // Call logout API (optional)
@@ -208,8 +134,7 @@ export const AuthProvider = ({ children }) => {
     } catch (error) {
       console.error('Logout API failed:', error);
     } finally {
-      // Clear all stored data
-      StorageService.clearAll();
+      // Clear token từ API service và reset state
       apiService.clearToken();
       dispatch({ type: AUTH_ACTIONS.LOGOUT });
     }
@@ -217,7 +142,6 @@ export const AuthProvider = ({ children }) => {
 
   // Update user info
   const updateUser = (userData) => {
-    StorageService.setUserInfo(userData);
     dispatch({ type: AUTH_ACTIONS.SET_USER, payload: userData });
   };
 

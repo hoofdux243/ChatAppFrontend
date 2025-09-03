@@ -1,8 +1,7 @@
-import StorageService from './storageService';
-import axiosInstance from '../utils/axiosConfig';
+import axiosInstance, { setAuthToken, clearAuthToken } from '../utils/axiosConfig';
 
 // API configuration
-const API_BASE_URL = 'http://localhost:8080/chatapp/api'; // Thay đổi URL này theo backend của bạn
+const API_BASE_URL = 'http://localhost:8080/chatapp/api';
 
 // API endpoints
 const API_ENDPOINTS = {
@@ -14,28 +13,20 @@ const API_ENDPOINTS = {
   MESSAGES: '/chatrooms/:id/messages'
 };
 
-// API service class
+// API service class - Đơn giản hóa không dùng localStorage
 class ApiService {
   constructor() {
     this.baseURL = API_BASE_URL;
-    this.token = StorageService.getToken();
   }
 
   // Set token for authenticated requests
   setToken(token) {
-    this.token = token;
-    // Note: Don't store here, let the calling code decide storage method
-  }
-
-  // Get token from storage
-  getToken() {
-    return StorageService.getToken();
+    setAuthToken(token);
   }
 
   // Clear token (logout)
   clearToken() {
-    this.token = null;
-    StorageService.clearAll();
+    clearAuthToken();
   }
 
   // Generic request method using axios instance
@@ -54,39 +45,30 @@ class ApiService {
       return response.data;
     } catch (error) {
       console.error('API request failed:', error);
+      
+      // Handle backend error response format
+      if (error.response && error.response.data) {
+        const errorData = error.response.data;
+        
+        // Format: { message: "User not found", status: 400, timestamp: 1756936933243 }
+        if (errorData.message) {
+          const customError = new Error(errorData.message);
+          customError.status = errorData.status;
+          customError.timestamp = errorData.timestamp;
+          customError.originalError = error;
+          throw customError;
+        }
+      }
+      
+      // Fallback for other error formats
       throw error;
     }
   }
 
-  // Try to refresh token
+  // Try to refresh token - Đơn giản hóa, không dùng refresh token
   async tryRefreshToken() {
-    try {
-      const refreshToken = StorageService.getRefreshToken();
-      if (!refreshToken) {
-        return false;
-      }
-
-      const response = await fetch(`${this.baseURL}${API_ENDPOINTS.REFRESH_TOKEN}`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ refresh_token: refreshToken }),
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        if (data.access_token) {
-          this.setToken(data.access_token);
-          StorageService.setToken(data.access_token, true); // Maintain persistence
-          return true;
-        }
-      }
-      return false;
-    } catch (error) {
-      console.error('Token refresh failed:', error);
-      return false;
-    }
+    // Không implement refresh token để đơn giản
+    return false;
   }
 
   // Login method
@@ -141,11 +123,14 @@ class ApiService {
           console.log('Cannot decode token:', e);
         }
         
-        // Nếu response có thông tin user chi tiết
-        if (response.result && response.result.user) {
+        // Nếu response có thông tin user chi tiết từ result
+        if (response.result) {
           user = {
             ...user,
-            ...response.result.user
+            name: response.result.name || user.name,
+            avatar: response.result.avatar || user.avatar,
+            // Nếu có user object trong result
+            ...(response.result.user || {})
           };
         }
         

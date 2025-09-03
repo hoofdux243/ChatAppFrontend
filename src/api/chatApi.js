@@ -20,15 +20,27 @@ const chatApi = {
         return response;
     },
 
-    // Gửi tin nhắn
-    sendMessage: async (messageData) => {
-        const response = await axios.post(`${addressAPI}/api/messages`, messageData);
+    // Gửi tin nhắn đúng endpoint
+    sendMessage: async (chatroomId, messageData) => {
+        const response = await axios.post(`${addressAPI}/api/chatrooms/${chatroomId}/send-message`, messageData);
         return response;
     },
 
     // Tạo chatroom mới
     createChatRoom: async (chatRoomData) => {
         const response = await axios.post(`${addressAPI}/api/chatrooms`, chatRoomData);
+        return response;
+    },
+
+    // Lấy thông tin user hiện tại
+    getCurrentUser: async () => {
+        const response = await axios.get(`${addressAPI}/api/users/me`);
+        return response;
+    },
+
+    // Tìm kiếm users theo keyword
+    searchUsers: async (keyword) => {
+        const response = await axios.get(`${addressAPI}/api/users?keyword=${keyword}`);
         return response;
     }
 };

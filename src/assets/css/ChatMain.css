@@ -1,11 +1,12 @@
-/* Main Chat Layout */
-.chat-main-container {
-  display: flex;
-  height: 100vh;
-  overflow: hidden;
-  width: 100vw;
-  position: relative;
-}
+/* Legacy ChatMain.css - This file is being replaced by component-specific CSS files */
+/* Please use individual component CSS files instead:
+   - Sidebar.css for Sidebar component
+   - ChatList.css for ChatList component  
+   - WindowChat.css for WindowChat component
+   - InfoPanel.css for InfoPanel component
+   - Avatar.css for Avatar component
+   - ChatPage.css for ChatPage component
+*/
 
 /* Sidebar Styles */
 .sidebar {
@@ -81,6 +82,7 @@
 .chat-list-search {
   padding: 16px 20px;
   border-bottom: 1px solid #e5e7eb;
+  position: relative;
 }
 
 .search-input {

@@ -27,7 +27,6 @@ const chatService = {
     getMessagesByIdConversation: async (idConversation, page = 0, size = 20) => {
         try {
             const response = await chatApi.getMessagesByIdConversation(idConversation, page, size);
-            console.log('Raw messages response:', response.data);
             return response.data;
         } catch (error) {
             console.error('Error fetching messages with pagination:', error);
@@ -36,9 +35,9 @@ const chatService = {
     },
 
     // Gửi tin nhắn
-    sendMessage: async (messageData) => {
+    sendMessage: async (chatroomId, messageData) => {
         try {
-            const response = await chatApi.sendMessage(messageData);
+            const response = await chatApi.sendMessage(chatroomId, messageData);
             return response.data;
         } catch (error) {
             console.error('Error sending message:', error);
@@ -57,57 +56,111 @@ const chatService = {
         }
     },
 
-    // Lấy tên user từ localStorage
+    // Lấy tên user từ context (không dùng localStorage)
     getUserName: () => {
         try {
-            const userInfo = localStorage.getItem("user");
-            if (userInfo) {
-                const user = JSON.parse(userInfo);
-                return user.username || user.firstName || 'User';
-            }
-            return 'User';
+            // Sẽ được lấy từ context thay vì localStorage
+            return "Current User";
         } catch (error) {
             console.error('Error getting user name:', error);
             return 'User';
         }
     },
 
-    // Lấy current user username để so sánh với tin nhắn
-    getCurrentUserName: () => {
+    // Lấy current user username từ parameter hoặc context
+    getCurrentUserName: (currentUser = null) => {
         try {
-            console.log('Getting current user name...');
-            
-            const userInfo = localStorage.getItem("user_info");
-            console.log('user_info from localStorage:', userInfo);
-            
-            if (userInfo) {
-                const user = JSON.parse(userInfo);
-                console.log('Parsed user_info:', user);
-                const username = user.username || user.senderUsername || user.firstName;
-                console.log('Extracted username from user_info:', username);
-                if (username) return username;
+            if (currentUser && currentUser.username) {
+                return currentUser.username;
             }
-            
-            // Fallback: thử lấy từ key 'user' 
-            const fallbackUserInfo = localStorage.getItem("user");
-            console.log('fallback user from localStorage:', fallbackUserInfo);
-            
-            if (fallbackUserInfo) {
-                const user = JSON.parse(fallbackUserInfo);
-                console.log('Parsed fallback user:', user);
-                const username = user.username || user.senderUsername || user.firstName;
-                console.log('Extracted username from fallback user:', username);
-                if (username) return username;
-            }
-            
-            console.log('No user found, returning default');
-            
-            // Temporary hardcode for testing - thay bằng username thực tế của bạn
-            console.log('==== RETURNING HARDCODED vu1 ====');
-            return 'vu1'; // Thay 'vu1' bằng username thực tế
+            // Fallback
+            return 'currentUser';
         } catch (error) {
             console.error('Error getting current user name:', error);
             return 'CurrentUser';
+        }
+    },
+
+    // Lấy thông tin user hiện tại bao gồm avatar
+    getCurrentUser: async () => {
+        try {
+            // Thử lấy từ localStorage trước (user_info từ login response)
+            const cachedUserInfo = localStorage.getItem("user_info");
+            if (cachedUserInfo) {
+                const user = JSON.parse(cachedUserInfo);
+                return {
+                    username: user.username || user.name || user.senderUsername || user.firstName,
+                    name: user.name || user.username || user.firstName || 'Current User',
+                    email: user.email || '',
+                    avatar: user.avatar || user.senderAvatar || null,
+                    id: user.id || user.senderId || null
+                };
+            }
+            
+            // Nếu không có trong localStorage hoặc không có avatar, gọi API
+            try {
+                const response = await chatApi.getCurrentUser();
+                if (response && response.data) {
+                    const userData = response.data.result || response.data;
+                    const userInfo = {
+                        username: userData.username || userData.name || userData.senderUsername,
+                        name: userData.name || userData.username || 'Current User',
+                        email: userData.email || '',
+                        avatar: userData.avatar || userData.senderAvatar || null,
+                        id: userData.id || userData.senderId || null
+                    };
+                    
+                    // Cập nhật localStorage
+                    localStorage.setItem("user_info", JSON.stringify(userData));
+                    return userInfo;
+                }
+            } catch (apiError) {
+                console.error('Error fetching user from API:', apiError);
+            }
+            
+            // Fallback: thử lấy từ key 'user' (legacy)
+            const fallbackUserInfo = localStorage.getItem("user");
+            if (fallbackUserInfo) {
+                const user = JSON.parse(fallbackUserInfo);
+                return {
+                    username: user.username || user.name || user.senderUsername || user.firstName,
+                    name: user.name || user.username || user.firstName || 'Current User',
+                    email: user.email || '',
+                    avatar: user.avatar || user.senderAvatar || null,
+                    id: user.id || user.senderId || null
+                };
+            }
+            
+            return {
+                username: 'vu1',
+                name: 'vu1',
+                email: '',
+                avatar: null,
+                id: null
+            };
+        } catch (error) {
+            console.error('Error getting current user:', error);
+            return {
+                username: 'CurrentUser',
+                name: 'CurrentUser',
+                email: '',
+                avatar: null,
+                id: null
+            };
+        }
+    },
+
+    // Tìm kiếm users
+    searchUsers: async (keyword) => {
+        try {
+            if (!keyword || keyword.trim() === '') {
+                return [];
+            }
+            const response = await chatApi.searchUsers(keyword.trim());
+            return response.data;
+        } catch (error) {
+            console.error('Error searching users:', error);
+            throw error;
         }
     },
 

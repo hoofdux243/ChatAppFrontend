@@ -1,0 +1,14 @@
+/* ChatPage Component Styles */
+.chat-main-container {
+  display: flex;
+  height: 100vh;
+  overflow: hidden;
+  width: 100vw;
+  position: relative;
+}
+
+@media (max-width: 768px) {
+  .chat-main-container {
+    flex-direction: column;
+  }
+}
