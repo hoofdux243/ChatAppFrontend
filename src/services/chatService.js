@@ -1,4 +1,6 @@
 import chatApi from "../api/chatApi";
+import axios from 'axios';
+import { getAuthToken } from '../utils/axiosConfig';
 
 const chatService = {
     // Lấy danh sách conversation theo user ID
@@ -37,10 +39,56 @@ const chatService = {
     // Gửi tin nhắn
     sendMessage: async (chatroomId, messageData) => {
         try {
-            const response = await chatApi.sendMessage(chatroomId, messageData);
+            // TEXT cũng dùng FormData như IMAGE
+            const formData = new FormData();
+            formData.append('content', messageData.content);
+            formData.append('messageType', messageData.messageType);
+            
+            // Dùng axios thuần như image
+            const token = getAuthToken();
+            const config = {
+                headers: {
+                    ...(token && { Authorization: `Bearer ${token}` })
+                }
+            };
+            
+            const response = await axios.post(
+                `http://localhost:8080/chatapp/api/chatrooms/${chatroomId}/send-message`,
+                formData,
+                config
+            );
             return response.data;
         } catch (error) {
             console.error('Error sending message:', error);
+            throw error;
+        }
+    },
+
+    // Gửi tin nhắn ảnh
+    sendImageMessage: async (chatroomId, imageFile) => {
+        try {
+            const formData = new FormData();
+            formData.append('content', '');
+            formData.append('messageType', 'IMAGE');
+            formData.append('image', imageFile);
+            
+            // Dùng axios thuần, KHÔNG qua interceptor
+            const token = getAuthToken();
+            const config = {
+                headers: {
+                    ...(token && { Authorization: `Bearer ${token}` })
+                    // KHÔNG set Content-Type
+                }
+            };
+            
+            const response = await axios.post(
+                `http://localhost:8080/chatapp/api/chatrooms/${chatroomId}/send-message`, 
+                formData, 
+                config
+            );
+            return response.data;
+        } catch (error) {
+            console.error('Error sending image message:', error);
             throw error;
         }
     },
@@ -70,8 +118,9 @@ const chatService = {
     // Lấy current user username từ parameter hoặc context
     getCurrentUserName: (currentUser = null) => {
         try {
-            if (currentUser && currentUser.username) {
-                return currentUser.username;
+            if (currentUser) {
+                // Thử các trường có thể có trong user object
+                return currentUser.username || currentUser.name || currentUser.email || 'currentUser';
             }
             // Fallback
             return 'currentUser';
@@ -192,6 +241,17 @@ const chatService = {
         } catch (error) {
             console.error('Error formatting time:', error);
             return '';
+        }
+    },
+
+    // Lấy thông tin profile user
+    getUserProfile: async (userId) => {
+        try {
+            const response = await chatApi.getUserProfile(userId);
+            return response.data;
+        } catch (error) {
+            console.error('Error fetching user profile:', error);
+            throw error;
         }
     }
 };

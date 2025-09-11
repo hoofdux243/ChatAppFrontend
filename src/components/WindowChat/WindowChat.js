@@ -8,14 +8,17 @@ import '../../assets/css/WindowChat.css';
 
 const WindowChat = ({ conversation, currentUser, onToggleInfoPanel, isInfoPanelOpen }) => {
   const [newMessage, setNewMessage] = useState('');
+  const [selectedImage, setSelectedImage] = useState(null);
+  const [selectedImagePreview, setSelectedImagePreview] = useState(null);
   const messagesEndRef = useRef(null);
   const chatMessagesRef = useRef(null);
+  const imageInputRef = useRef(null);
   const prevScrollHeightRef = useRef(0);
   const [page, setPage] = useState(0);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [hasNextPage, setHasNextPage] = useState(true);
   const [isInitialLoading, setIsInitialLoading] = useState(false);
-  const { messages, loadMessages, sendMessage } = useChat();
+  const { messages, loadMessages, sendMessage, sendImageMessage } = useChat();
 
   // Lấy tin nhắn cho conversation hiện tại với dependency
   const currentMessages = useMemo(() => {
@@ -62,9 +65,35 @@ const WindowChat = ({ conversation, currentUser, onToggleInfoPanel, isInfoPanelO
     }
   }, [conversation, currentMessages, page]);
 
+  // Cleanup preview URL khi component unmount
+  useEffect(() => {
+    return () => {
+      if (selectedImagePreview) {
+        URL.revokeObjectURL(selectedImagePreview);
+      }
+    };
+  }, [selectedImagePreview]);
+
   const handleSendMessage = async (e) => {
     e.preventDefault();
-    if (newMessage.trim() && conversation) {
+    
+    if (selectedImage && conversation) {
+      // Gửi ảnh
+      try {
+        console.log('Sending image:', selectedImage);
+        await sendImageMessage(conversation.id, selectedImage);
+        handleRemoveImage();
+        // Force re-render để cập nhật UI ngay lập tức
+        setTimeout(() => {
+          if (chatMessagesRef.current) {
+            chatMessagesRef.current.scrollTop = chatMessagesRef.current.scrollHeight;
+          }
+        }, 100);
+      } catch (error) {
+        console.error('Error sending image:', error);
+      }
+    } else if (newMessage.trim() && conversation) {
+      // Gửi text message
       try {
         await sendMessage(conversation.id, newMessage.trim());
         setNewMessage('');
@@ -78,6 +107,39 @@ const WindowChat = ({ conversation, currentUser, onToggleInfoPanel, isInfoPanelO
         console.error('Error sending message:', error);
         // Có thể hiển thị notification lỗi ở đây
       }
+    }
+  };
+
+  // Function xử lý chọn ảnh
+  const handleImageSelect = () => {
+    imageInputRef.current?.click();
+  };
+
+  // Function xử lý khi file được chọn
+  const handleImageChange = (e) => {
+    const file = e.target.files[0];
+    if (file && file.type.startsWith('image/')) {
+      setSelectedImage(file);
+      
+      // Tạo preview URL
+      const previewUrl = URL.createObjectURL(file);
+      setSelectedImagePreview(previewUrl);
+      
+      // Clear text message khi chọn ảnh
+      setNewMessage('');
+    }
+  };
+
+  // Function xóa ảnh đã chọn
+  const handleRemoveImage = () => {
+    if (selectedImagePreview) {
+      URL.revokeObjectURL(selectedImagePreview);
+    }
+    setSelectedImage(null);
+    setSelectedImagePreview(null);
+    // Reset input file
+    if (imageInputRef.current) {
+      imageInputRef.current.value = '';
     }
   };
 
@@ -267,22 +329,41 @@ const WindowChat = ({ conversation, currentUser, onToggleInfoPanel, isInfoPanelO
                       />
                     </div>
                   )}
-                  <div className="message-content">
-                    {!item.isOwn && conversation.isGroup && (
-                      <div style={{ 
-                        fontSize: '12px', 
-                        color: '#3b82f6', 
-                        marginBottom: '4px',
-                        fontWeight: '500'
-                      }}>
-                        {item.senderName}
+                  {item.messageType === 'IMAGE' ? (
+                    <div className="message-image">
+                      <img 
+                        src={item.content || item.text} 
+                        alt="Shared image"
+                        onError={(e) => {
+                          e.target.style.display = 'none';
+                          e.target.nextSibling.style.display = 'block';
+                        }}
+                      />
+                      <div className="image-error" style={{display: 'none'}}>
+                        Không thể tải hình ảnh
                       </div>
-                    )}
-                    <div>{item.content || item.text}</div>
-                    <div className="message-time">
-                      {formatMessageTime(item.sentAt || item.timestamp)}
+                      <div className="message-time">
+                        {formatMessageTime(item.sentAt || item.timestamp)}
+                      </div>
                     </div>
-                  </div>
+                  ) : (
+                    <div className="message-content">
+                      {!item.isOwn && conversation.isGroup && (
+                        <div style={{ 
+                          fontSize: '12px', 
+                          color: '#3b82f6', 
+                          marginBottom: '4px',
+                          fontWeight: '500'
+                        }}>
+                          {item.senderName}
+                        </div>
+                      )}
+                      <div>{item.content || item.text}</div>
+                      <div className="message-time">
+                        {formatMessageTime(item.sentAt || item.timestamp)}
+                      </div>
+                    </div>
+                  )}
                 </div>
               )
             ))}
@@ -299,7 +380,7 @@ const WindowChat = ({ conversation, currentUser, onToggleInfoPanel, isInfoPanelO
           <button type="button" style={{ background: 'none', border: 'none', padding: '4px', cursor: 'pointer', display: 'flex', alignItems: 'center' }}>
             <FaSmile size={22} color="#6b7280" />
           </button>
-          <button type="button" style={{ background: 'none', border: 'none', padding: '4px', cursor: 'pointer', display: 'flex', alignItems: 'center' }}>
+          <button type="button" onClick={handleImageSelect} style={{ background: 'none', border: 'none', padding: '4px', cursor: 'pointer', display: 'flex', alignItems: 'center' }}>
             <FaImage size={22} color="#6b7280" />
           </button>
           <button type="button" style={{ background: 'none', border: 'none', padding: '4px', cursor: 'pointer', display: 'flex', alignItems: 'center' }}>
@@ -309,17 +390,91 @@ const WindowChat = ({ conversation, currentUser, onToggleInfoPanel, isInfoPanelO
             <FaMicrophone size={22} color="#6b7280" />
           </button>
         </div>
+        
+        {/* Hidden input file */}
+        <input
+          type="file"
+          ref={imageInputRef}
+          onChange={handleImageChange}
+          accept="image/*"
+          style={{ display: 'none' }}
+        />
+        
         <form onSubmit={handleSendMessage}>
           <div className="chat-input-wrapper" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <input
-              type="text"
-              placeholder="Type a message..."
-              className="chat-input"
-              value={newMessage}
-              onChange={(e) => setNewMessage(e.target.value)}
-              style={{ flex: 1 }}
-            />
-            <button type="submit" style={{ background: 'none', border: 'none', padding: '4px', cursor: 'pointer', display: 'flex', alignItems: 'center' }} disabled={!newMessage.trim()}>
+            {selectedImagePreview ? (
+              // Hiển thị ảnh preview trong input area
+              <div style={{
+                flex: 1,
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                padding: '8px',
+                backgroundColor: '#f9fafb',
+                borderRadius: '8px',
+                border: '1px solid #e5e7eb'
+              }}>
+                <img
+                  src={selectedImagePreview}
+                  alt="Preview"
+                  style={{
+                    width: '40px',
+                    height: '40px',
+                    objectFit: 'cover',
+                    borderRadius: '6px'
+                  }}
+                />
+                <span style={{ flex: 1, fontSize: '14px', color: '#6b7280' }}>
+                  Ảnh đã chọn
+                </span>
+                <button
+                  type="button"
+                  onClick={handleRemoveImage}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    cursor: 'pointer',
+                    fontSize: '16px',
+                    color: '#ef4444',
+                    padding: '4px',
+                    borderRadius: '4px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    transition: 'background-color 0.2s'
+                  }}
+                  onMouseEnter={(e) => e.target.style.backgroundColor = '#fee2e2'}
+                  onMouseLeave={(e) => e.target.style.backgroundColor = 'transparent'}
+                  title="Xóa ảnh"
+                >
+                  ✕
+                </button>
+              </div>
+            ) : (
+              // Hiển thị input text bình thường
+              <input
+                type="text"
+                placeholder="Type a message..."
+                className="chat-input"
+                value={newMessage}
+                onChange={(e) => setNewMessage(e.target.value)}
+                style={{ flex: 1 }}
+              />
+            )}
+            <button 
+              type="submit" 
+              style={{ 
+                background: 'none', 
+                border: 'none', 
+                padding: '4px', 
+                cursor: 'pointer', 
+                display: 'flex', 
+                alignItems: 'center',
+                opacity: (!newMessage.trim() && !selectedImage) ? 0.5 : 1
+              }} 
+              disabled={!newMessage.trim() && !selectedImage}
+              title={selectedImage ? 'Gửi ảnh' : 'Gửi tin nhắn'}
+            >
               <FaPaperPlane size={22} color="#3b82f6" />
             </button>
           </div>

@@ -9,45 +9,78 @@ const ChatList = ({ onSelectConversation, selectedConversation }) => {
   const [searchResults, setSearchResults] = useState([]);
   const [isSearching, setIsSearching] = useState(false);
   const [showSearchResults, setShowSearchResults] = useState(false);
+  const [activeTab, setActiveTab] = useState('contacts'); // 'contacts' hoặc 'messages'
+  const [chatSearchResults, setChatSearchResults] = useState([]);
   const { conversations, loading, error, loadConversations } = useChat();
 
+  // Function để format message content dựa vào messageType
+  const formatMessageContent = (lastMessage) => {
+    if (!lastMessage) return 'Chưa có tin nhắn';
+    
+    if (lastMessage.messageType === 'IMAGE') {
+      return `${lastMessage.senderName} đã gửi 1 ảnh`;
+    }
+    
+    if (lastMessage.senderName && lastMessage.content !== 'Chưa có tin nhắn') {
+      return `${lastMessage.senderName}: ${lastMessage.content}`;
+    }
+    
+    return lastMessage.content || 'Chưa có tin nhắn';
+  };
+
   // Debounce search function
-  const debounceSearch = useCallback((searchValue) => {
+  const debounceSearch = useCallback((searchValue, tabType = 'contacts') => {
     const timeoutId = setTimeout(async () => {
       if (searchValue.trim()) {
         setIsSearching(true);
         try {
-          const results = await chatService.searchUsers(searchValue);
-          
-          if (results && results.result && results.result.data) {
-            setSearchResults(results.result.data);
+          if (tabType === 'contacts') {
+            // Search users
+            const results = await chatService.searchUsers(searchValue);
+            
+            if (results && results.result && results.result.data) {
+              setSearchResults(results.result.data);
+              setShowSearchResults(true);
+            } else {
+              setSearchResults([]);
+              setShowSearchResults(false);
+            }
+          } else if (tabType === 'messages') {
+            // Search chats - TODO: implement chat search API
+            // For now, filter existing conversations
+            const filteredChats = conversations.filter(conv =>
+              (conv.title || '').toLowerCase().includes(searchValue.toLowerCase())
+            );
+            setChatSearchResults(filteredChats);
             setShowSearchResults(true);
-          } else {
-            setSearchResults([]);
-            setShowSearchResults(false);
           }
         } catch (error) {
           console.error('Search error:', error);
-          setSearchResults([]);
+          if (tabType === 'contacts') {
+            setSearchResults([]);
+          } else {
+            setChatSearchResults([]);
+          }
           setShowSearchResults(false);
         } finally {
           setIsSearching(false);
         }
       } else {
         setSearchResults([]);
+        setChatSearchResults([]);
         setShowSearchResults(false);
         setIsSearching(false);
       }
     }, 1000); // 1 second delay
 
     return timeoutId;
-  }, []);
+  }, [conversations]);
 
   // Handle search input change
   useEffect(() => {
-    const timeoutId = debounceSearch(searchTerm);
+    const timeoutId = debounceSearch(searchTerm, activeTab);
     return () => clearTimeout(timeoutId);
-  }, [searchTerm, debounceSearch]);
+  }, [searchTerm, activeTab, debounceSearch]);
 
   // Reload conversations khi component mount
   useEffect(() => {
@@ -55,10 +88,6 @@ const ChatList = ({ onSelectConversation, selectedConversation }) => {
       loadConversations();
     }
   }, [conversations.length, loadConversations]);
-
-  const filteredConversations = conversations.filter(conv =>
-    (conv.title || '').toLowerCase().includes((searchTerm || '').toLowerCase())
-  );
 
   const handleConversationClick = (conversation) => {
     onSelectConversation(conversation);
@@ -81,6 +110,7 @@ const ChatList = ({ onSelectConversation, selectedConversation }) => {
     onSelectConversation(userConversation);
     setSearchTerm('');
     setShowSearchResults(false);
+    setActiveTab('contacts'); // Reset về tab mặc định
   };
 
   const handleSearchInputChange = (e) => {
@@ -90,6 +120,23 @@ const ChatList = ({ onSelectConversation, selectedConversation }) => {
     if (!value.trim()) {
       setShowSearchResults(false);
       setSearchResults([]);
+      setChatSearchResults([]);
+      setActiveTab('contacts'); // Reset về tab mặc định khi xóa search
+    }
+  };
+
+  const handleTabChange = (tab) => {
+    // Chỉ thực hiện khi tab thực sự thay đổi
+    if (tab === activeTab) {
+      return; // Không làm gì nếu click vào tab đang active
+    }
+    
+    setActiveTab(tab);
+    // Re-trigger search with current search term for new tab
+    if (searchTerm.trim()) {
+      setIsSearching(true);
+      const timeoutId = debounceSearch(searchTerm, tab);
+      return () => clearTimeout(timeoutId);
     }
   };
 
@@ -186,7 +233,7 @@ const ChatList = ({ onSelectConversation, selectedConversation }) => {
       <div className="chat-list-search">
         <input
           type="text"
-          placeholder="Tìm kiếm cuộc trò chuyện hoặc người dùng..."
+          placeholder="Tìm kiếm..."
           className="search-input"
           value={searchTerm}
           onChange={handleSearchInputChange}
@@ -204,111 +251,230 @@ const ChatList = ({ onSelectConversation, selectedConversation }) => {
           </div>
         )}
       </div>
+
+      {/* Search Tabs - chỉ hiện khi có search term */}
+      {showSearchResults && searchTerm.trim() && (
+        <div style={{ 
+          display: 'flex', 
+          borderBottom: '1px solid #e5e7eb',
+          backgroundColor: '#f9fafb'
+        }}>
+          <button
+            onClick={() => handleTabChange('contacts')}
+            style={{
+              flex: 1,
+              padding: '12px 16px',
+              border: 'none',
+              backgroundColor: activeTab === 'contacts' ? 'white' : 'transparent',
+              color: activeTab === 'contacts' ? '#3b82f6' : '#6b7280',
+              fontWeight: activeTab === 'contacts' ? '600' : '400',
+              fontSize: '14px',
+              borderBottom: activeTab === 'contacts' ? '2px solid #3b82f6' : '2px solid transparent',
+              cursor: 'pointer',
+              transition: 'all 0.2s'
+            }}
+          >
+            Liên hệ
+          </button>
+          <button
+            onClick={() => handleTabChange('messages')}
+            style={{
+              flex: 1,
+              padding: '12px 16px',
+              border: 'none',
+              backgroundColor: activeTab === 'messages' ? 'white' : 'transparent',
+              color: activeTab === 'messages' ? '#3b82f6' : '#6b7280',
+              fontWeight: activeTab === 'messages' ? '600' : '400',
+              fontSize: '14px',
+              borderBottom: activeTab === 'messages' ? '2px solid #3b82f6' : '2px solid transparent',
+              cursor: 'pointer',
+              transition: 'all 0.2s'
+            }}
+          >
+            Tin nhắn
+          </button>
+        </div>
+      )}
       
       <div className="chat-list-items">
         {showSearchResults ? (
           <div>
-            {/* Hiển thị kết quả search users */}
-            {friends.length > 0 && (
-              <div>
-                <div style={{ 
-                  padding: '12px 20px 8px', 
-                  fontSize: '14px', 
-                  fontWeight: '600', 
-                  color: '#374151',
-                  borderBottom: '1px solid #f3f4f6'
-                }}>
-                  Bạn bè ({friends.length})
-                </div>
-                {friends.map((user) => (
-                  <div
-                    key={`friend_${user.id}`}
-                    className="chat-item"
-                    onClick={() => handleUserClick(user)}
-                  >
-                    <Avatar 
-                      src={user.avatar} 
-                      alt={user.name || user.username}
-                      size="medium"
-                    />
-                    <div className="chat-item-content">
-                      <h4 className="chat-item-name">
-                        {user.name || user.username}
-                      </h4>
-                      <p className="chat-item-message" style={{ color: '#22c55e' }}>
-                        Bạn bè • Nhấn để nhắn tin
-                      </p>
+            {activeTab === 'contacts' ? (
+              // Hiển thị kết quả search users
+              <>
+                {friends.length > 0 && (
+                  <div>
+                    <div style={{ 
+                      padding: '12px 20px 8px', 
+                      fontSize: '14px', 
+                      fontWeight: '600', 
+                      color: '#374151',
+                      borderBottom: '1px solid #f3f4f6'
+                    }}>
+                      Bạn bè ({friends.length})
                     </div>
-                    <div className="chat-item-right">
-                      <div style={{ 
-                        width: '8px', 
-                        height: '8px', 
-                        borderRadius: '50%', 
-                        backgroundColor: '#22c55e' 
-                      }}></div>
-                    </div>
+                    {friends.map((user) => (
+                      <div
+                        key={`friend_${user.id}`}
+                        className="chat-item"
+                        onClick={() => handleUserClick(user)}
+                      >
+                        <Avatar 
+                          src={user.avatar} 
+                          alt={user.name || user.username}
+                          size="medium"
+                        />
+                        <div className="chat-item-content">
+                          <h4 className="chat-item-name">
+                            {user.name || user.username}
+                          </h4>
+                          <p className="chat-item-message" style={{ color: '#22c55e' }}>
+                            Bạn bè • Nhấn để nhắn tin
+                          </p>
+                        </div>
+                        <div className="chat-item-right">
+                          <div style={{ 
+                            width: '8px', 
+                            height: '8px', 
+                            borderRadius: '50%', 
+                            backgroundColor: '#22c55e' 
+                          }}></div>
+                        </div>
+                      </div>
+                    ))}
                   </div>
-                ))}
-              </div>
-            )}
-            
-            {strangers.length > 0 && (
-              <div>
-                <div style={{ 
-                  padding: '12px 20px 8px', 
-                  fontSize: '14px', 
-                  fontWeight: '600', 
-                  color: '#374151',
-                  borderBottom: '1px solid #f3f4f6'
-                }}>
-                  Người lạ ({strangers.length})
-                </div>
-                {strangers.map((user) => (
-                  <div
-                    key={`stranger_${user.id}`}
-                    className="chat-item"
-                    onClick={() => handleUserClick(user)}
-                  >
-                    <Avatar 
-                      src={user.avatar} 
-                      alt={user.name || user.username}
-                      size="medium"
-                    />
-                    <div className="chat-item-content">
-                      <h4 className="chat-item-name">
-                        {user.name || user.username}
-                      </h4>
-                      <p className="chat-item-message" style={{ color: '#6b7280' }}>
-                        Người lạ • Nhấn để nhắn tin
-                      </p>
+                )}
+                
+                {strangers.length > 0 && (
+                  <div>
+                    <div style={{ 
+                      padding: '12px 20px 8px', 
+                      fontSize: '14px', 
+                      fontWeight: '600', 
+                      color: '#374151',
+                      borderBottom: '1px solid #f3f4f6'
+                    }}>
+                      Người lạ ({strangers.length})
                     </div>
-                    <div className="chat-item-right">
-                      <div style={{ 
-                        width: '8px', 
-                        height: '8px', 
-                        borderRadius: '50%', 
-                        backgroundColor: '#6b7280' 
-                      }}></div>
-                    </div>
+                    {strangers.map((user) => (
+                      <div
+                        key={`stranger_${user.id}`}
+                        className="chat-item"
+                        onClick={() => handleUserClick(user)}
+                      >
+                        <Avatar 
+                          src={user.avatar} 
+                          alt={user.name || user.username}
+                          size="medium"
+                        />
+                        <div className="chat-item-content">
+                          <h4 className="chat-item-name">
+                            {user.name || user.username}
+                          </h4>
+                          <p className="chat-item-message" style={{ color: '#6b7280' }}>
+                            Người lạ • Nhấn để nhắn tin
+                          </p>
+                        </div>
+                        <div className="chat-item-right">
+                          <div style={{ 
+                            width: '8px', 
+                            height: '8px', 
+                            borderRadius: '50%', 
+                            backgroundColor: '#6b7280' 
+                          }}></div>
+                        </div>
+                      </div>
+                    ))}
                   </div>
-                ))}
-              </div>
-            )}
-            
-            {searchResults.length === 0 && !isSearching && searchTerm.trim() && (
-              <div style={{ 
-                padding: '40px 20px', 
-                textAlign: 'center', 
-                color: '#6b7280',
-                fontSize: '14px'
-              }}>
-                Không tìm thấy người dùng nào
-              </div>
+                )}
+                
+                {searchResults.length === 0 && !isSearching && searchTerm.trim() && (
+                  <div style={{ 
+                    padding: '40px 20px', 
+                    textAlign: 'center', 
+                    color: '#6b7280',
+                    fontSize: '14px'
+                  }}>
+                    Không tìm thấy liên hệ nào
+                  </div>
+                )}
+              </>
+            ) : (
+              // Hiển thị kết quả search tin nhắn
+              <>
+                {chatSearchResults.length > 0 ? (
+                  <div>
+                    <div style={{ 
+                      padding: '12px 20px 8px', 
+                      fontSize: '14px', 
+                      fontWeight: '600', 
+                      color: '#374151',
+                      borderBottom: '1px solid #f3f4f6'
+                    }}>
+                      Cuộc trò chuyện ({chatSearchResults.length})
+                    </div>
+                    {chatSearchResults.map((conversation) => (
+                      <div
+                        key={conversation.id}
+                        className={`chat-item ${selectedConversation?.id === conversation.id ? 'active' : ''}`}
+                        onClick={() => handleConversationClick(conversation)}
+                      >
+                        <Avatar 
+                          src={conversation.avatar} 
+                          alt={conversation.title || 'Avatar'}
+                          size="medium"
+                        />
+                        <div className="chat-item-content">
+                          <h4 className="chat-item-name">
+                            {conversation.title || 'Cuộc trò chuyện'}
+                            {conversation.isGroup && (
+                              <span style={{ 
+                                marginLeft: '6px', 
+                                fontSize: '12px', 
+                                color: '#6b7280',
+                                fontWeight: '400'
+                              }}>
+                                (Group)
+                              </span>
+                            )}
+                          </h4>
+                          <p 
+                            className="chat-item-message"
+                            style={{ 
+                              fontWeight: conversation.lastRead === false ? '600' : 'normal',
+                              color: conversation.lastRead === false ? '#1f2937' : '#6b7280'
+                            }}
+                          >
+                            {formatMessageContent(conversation.lastMessage)}
+                          </p>
+                        </div>
+                        <div className="chat-item-right">
+                          <span className="chat-item-time">{conversation.timestamp || ''}</span>
+                          {(conversation.unreadCount || 0) > 0 && (
+                            <span className="chat-item-unread">
+                              {conversation.unreadCount}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div style={{ 
+                    padding: '40px 20px', 
+                    textAlign: 'center', 
+                    color: '#6b7280',
+                    fontSize: '14px'
+                  }}>
+                    Không tìm thấy cuộc trò chuyện nào
+                  </div>
+                )}
+              </>
             )}
           </div>
         ) : (
-          // Hiển thị conversations như bình thường
-          filteredConversations.map((conversation) => (
+          // Hiển thị tất cả conversations như bình thường
+          conversations.map((conversation) => (
             <div
               key={conversation.id}
               className={`chat-item ${selectedConversation?.id === conversation.id ? 'active' : ''}`}
@@ -333,7 +499,15 @@ const ChatList = ({ onSelectConversation, selectedConversation }) => {
                     </span>
                   )}
                 </h4>
-                <p className="chat-item-message">{conversation.lastMessage || 'Chưa có tin nhắn'}</p>
+                <p 
+                  className="chat-item-message"
+                  style={{ 
+                    fontWeight: conversation.lastRead === false ? '600' : 'normal',
+                    color: conversation.lastRead === false ? '#1f2937' : '#6b7280'
+                  }}
+                >
+                  {formatMessageContent(conversation.lastMessage)}
+                </p>
               </div>
               <div className="chat-item-right">
                 <span className="chat-item-time">{conversation.timestamp || ''}</span>

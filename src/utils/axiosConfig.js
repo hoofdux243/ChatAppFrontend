@@ -13,6 +13,11 @@ export const setAuthToken = (token) => {
     authToken = token;
 };
 
+// Function để get token
+export const getAuthToken = () => {
+    return authToken;
+};
+
 // Function để clear token
 export const clearAuthToken = () => {
     authToken = null;

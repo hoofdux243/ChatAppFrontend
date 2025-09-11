@@ -42,6 +42,12 @@ const chatApi = {
     searchUsers: async (keyword) => {
         const response = await axios.get(`${addressAPI}/api/users?keyword=${keyword}`);
         return response;
+    },
+
+    // Lấy thông tin profile user
+    getUserProfile: async (userId) => {
+        const response = await axios.get(`${addressAPI}/api/users/profile`);
+        return response;
     }
 };
 

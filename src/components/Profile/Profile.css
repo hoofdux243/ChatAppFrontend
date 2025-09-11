@@ -1,0 +1,409 @@
+.profile-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  opacity: 0;
+  animation: fadeIn 0.3s ease-out forwards;
+}
+
+.profile-overlay.closing {
+  animation: fadeOut 0.3s ease-out forwards;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes fadeOut {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+.profile-modal {
+  background: white;
+  border-radius: 8px;
+  width: 400px;
+  max-width: 90vw;
+  max-height: 90vh;
+  overflow: hidden;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+  transform: scale(0.7) translateY(-50px);
+  opacity: 0;
+  animation: modalSlideIn 0.3s ease-out forwards;
+}
+
+.profile-modal.closing {
+  animation: modalSlideOut 0.3s ease-out forwards;
+}
+
+@keyframes modalSlideIn {
+  from {
+    transform: scale(0.7) translateY(-50px);
+    opacity: 0;
+  }
+  to {
+    transform: scale(1) translateY(0);
+    opacity: 1;
+  }
+}
+
+@keyframes modalSlideOut {
+  from {
+    transform: scale(1) translateY(0);
+    opacity: 1;
+  }
+  to {
+    transform: scale(0.7) translateY(-50px);
+    opacity: 0;
+  }
+}
+
+.profile-header {
+  position: relative;
+  padding: 40px 24px 20px;
+  background: #f8f9fa;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.profile-avatar-section {
+  margin-bottom: 16px;
+}
+
+.profile-avatar-container {
+  position: relative;
+  width: 80px;
+  height: 80px;
+}
+
+.profile-avatar {
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  border: 4px solid white;
+  object-fit: cover;
+  background: #f0f0f0;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.profile-avatar:hover {
+  transform: scale(1.05);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+
+.profile-avatar:active {
+  transform: scale(0.95);
+}
+
+.profile-avatar-edit {
+  position: absolute;
+  bottom: 4px;
+  right: 4px;
+  background: #007bff;
+  border: 2px solid white;
+  border-radius: 50%;
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: white;
+  font-size: 12px;
+  transition: all 0.3s ease;
+}
+
+.profile-avatar-edit:hover {
+  background: #0056b3;
+  transform: scale(1.1);
+}
+
+.profile-avatar-edit:active {
+  transform: scale(0.9);
+}
+
+.profile-content {
+  padding: 0 24px 24px;
+  text-align: center;
+}
+
+.profile-name {
+  font-size: 20px;
+  font-weight: 600;
+  color: #333;
+  margin-bottom: 24px;
+}
+
+.profile-info-section {
+  text-align: left;
+  border-top: 1px solid #f0f0f0;
+  padding-top: 20px;
+}
+
+.profile-info-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: #333;
+  margin-bottom: 12px;
+}
+
+.profile-bio-text {
+  font-size: 14px;
+  color: #666;
+  line-height: 1.5;
+  text-align: left;
+  padding: 12px 0;
+  min-height: 40px;
+}
+
+.profile-info-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 0;
+  border-bottom: 1px solid #f5f5f5;
+}
+
+.profile-info-item:last-child {
+  border-bottom: none;
+}
+
+.profile-info-label {
+  font-size: 14px;
+  color: #666;
+  flex: 1;
+}
+
+.profile-info-value {
+  font-size: 14px;
+  color: #333;
+  flex: 2;
+  text-align: right;
+}
+
+.profile-update-btn {
+  width: 100%;
+  background: #007bff;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  padding: 12px;
+  font-size: 16px;
+  font-weight: 500;
+  cursor: pointer;
+  margin-top: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  transition: all 0.3s ease;
+}
+
+.profile-update-btn:hover {
+  background: #0056b3;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 123, 255, 0.3);
+}
+
+.profile-update-btn:active {
+  transform: translateY(0);
+}
+
+.profile-back-btn {
+  background: rgba(255, 255, 255, 0.9);
+  border: none;
+  border-radius: 50%;
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: #333;
+  font-size: 16px;
+  transition: all 0.3s ease;
+}
+
+.profile-back-btn:hover {
+  background: white;
+  transform: scale(1.1);
+  color: #666;
+}
+
+.profile-edit-icon {
+  color: #007bff;
+  cursor: pointer;
+  padding: 4px;
+  opacity: 0.7;
+  font-size: 14px;
+}
+
+.profile-edit-icon:hover {
+  opacity: 1;
+}
+
+/* Form styles */
+.profile-form {
+  padding: 24px;
+}
+
+.profile-form-group {
+  margin-bottom: 16px;
+  text-align: left;
+}
+
+.profile-form-label {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 14px;
+  font-weight: 500;
+  color: #333;
+}
+
+.profile-form-input {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  font-size: 14px;
+  box-sizing: border-box;
+}
+
+.profile-form-input:focus {
+  outline: none;
+  border-color: #007bff;
+}
+
+.profile-form-textarea {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  font-size: 14px;
+  resize: vertical;
+  min-height: 60px;
+  box-sizing: border-box;
+}
+
+.profile-form-textarea:focus {
+  outline: none;
+  border-color: #007bff;
+}
+
+.profile-gender-options {
+  display: flex;
+  gap: 16px;
+}
+
+.profile-gender-option {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  font-size: 14px;
+}
+
+.profile-date-inputs {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 8px;
+}
+
+.profile-date-input {
+  padding: 10px 8px;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  font-size: 14px;
+}
+
+.profile-date-input:focus {
+  outline: none;
+  border-color: #007bff;
+}
+
+.profile-form-actions {
+  display: flex;
+  gap: 12px;
+  margin-top: 24px;
+}
+
+.profile-btn {
+  flex: 1;
+  padding: 12px;
+  border: none;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+.profile-btn-primary {
+  background: #007bff;
+  color: white;
+}
+
+.profile-btn-primary:hover {
+  background: #0056b3;
+}
+
+.profile-btn-secondary {
+  background: #6c757d;
+  color: white;
+}
+
+.profile-btn-secondary:hover {
+  background: #545b62;
+}
+
+/* Mobile responsive */
+@media (max-width: 480px) {
+  .profile-modal {
+    width: 95vw;
+    margin: 20px;
+  }
+  
+  .profile-content {
+    padding: 50px 16px 16px;
+  }
+  
+  .profile-form {
+    padding: 16px;
+  }
+  
+  .profile-date-inputs {
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+  
+  .profile-gender-options {
+    flex-direction: column;
+    gap: 8px;
+  }
+  
+  .profile-form-actions {
+    flex-direction: column;
+  }
+}

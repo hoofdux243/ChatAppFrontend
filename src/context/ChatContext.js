@@ -42,11 +42,13 @@ export const ChatProvider = ({ children }) => {
             id: item.chatRoomId,
             title: item.chatRoomName || item.chatRoomAvatar || `Chat ${item.chatRoomId.substring(0, 8)}` || 'Cuộc trò chuyện',
             avatar: item.chatRoomAvatar || null,
-            lastMessage: item.lastMessage ? item.lastMessage.content : 'Chưa có tin nhắn',
+            lastMessage: item.lastMessage || null, // Giữ nguyên object thay vì chỉ lấy content
+            lastMessageSender: item.lastMessage ? item.lastMessage.senderName : null, // Thêm tên người gửi
             timestamp: item.lastMessage ? chatService.formatMessageTime(item.lastMessage.sentAt) : '',
             isGroup:item.roomType === 'PUBLIC', 
             memberCount: item.memberCount,
             unreadCount: item.readCount || 0,
+            lastRead: item.lastMessage ? item.lastMessage.lastRead : true, // Thêm trường lastRead
             participants: [] // Có thể thêm thông tin participants nếu cần
           };
         });
@@ -140,7 +142,7 @@ export const ChatProvider = ({ children }) => {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [user]);
 
   // Gửi tin nhắn
   const sendMessage = useCallback(async (conversationId, messageContent) => {
@@ -188,7 +190,58 @@ export const ChatProvider = ({ children }) => {
       console.error('Error sending message:', error);
       throw error;
     }
-  }, []);
+  }, [user]);
+
+  // Gửi tin nhắn ảnh
+  const sendImageMessage = useCallback(async (conversationId, imageFile) => {
+    try {
+      console.log('ChatContext - Sending image message:', imageFile);
+      const response = await chatService.sendImageMessage(conversationId, imageFile);
+      console.log('ChatContext - Send image message response:', response);
+      
+      if (response) {
+        // Thêm tin nhắn ảnh vào state local
+        const newMessage = {
+          id: response.result?.messageId || Date.now(),
+          content: response.result?.content || 'Image',
+          senderId: response.result?.senderId || 'me',
+          senderName: response.result?.senderName || 'You',
+          senderUsername: response.result?.senderUsername || 'You',
+          timestamp: response.result?.sentAt ? new Date(response.result.sentAt) : new Date(),
+          messageType: 'IMAGE',
+          messageStatus: 'SENT',
+          readCount: 0,
+          lastRead: true,
+          isOwn: true
+        };
+        
+        setMessages(prev => ({
+          ...prev,
+          [conversationId]: [...(prev[conversationId] || []), newMessage]
+        }));
+        
+        // Cập nhật lastMessage trong conversations với format phù hợp
+        const lastMessageObject = {
+          content: response.result?.content || 'Image',
+          senderName: 'You',
+          messageType: 'IMAGE'
+        };
+        
+        setConversations(prev => 
+          prev.map(conv => 
+            conv.id === conversationId 
+              ? { ...conv, lastMessage: lastMessageObject, timestamp: 'Vừa xong' }
+              : conv
+          )
+        );
+        
+        return response;
+      }
+    } catch (error) {
+      console.error('Error sending image message:', error);
+      throw error;
+    }
+  }, [user]);
 
   // Load conversations khi component mount
   useEffect(() => {
@@ -216,6 +269,7 @@ export const ChatProvider = ({ children }) => {
     loadConversations,
     loadMessages,
     sendMessage,
+    sendImageMessage,
     
     // Thêm method để load more messages
     loadMoreMessages: useCallback(async (conversationId, page) => {
@@ -259,7 +313,7 @@ export const ChatProvider = ({ children }) => {
         console.error('Error loading more messages:', error);
         throw error;
       }
-    }, [])
+    }, [user])
   };
 
   return (

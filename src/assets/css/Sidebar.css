@@ -10,31 +10,54 @@
   align-items: center;
   padding-top: 20px;
   flex-shrink: 0;
+  position: relative;
 }
 
 .sidebar-avatar {
   cursor: pointer;
   position: relative;
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  overflow: visible;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.2s ease;
+}
+
+.sidebar-avatar:hover {
+  transform: scale(1.05);
 }
 
 .sidebar-icon {
   padding: 8px;
-  border-radius: 8px;
+  border-radius: 12px;
   cursor: pointer;
-  transition: background-color 0.2s;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  color: #64748b;
 }
 
 .sidebar-icon:hover {
   background-color: #bfdbfe;
+  color: #1e40af;
+  transform: translateY(-2px);
 }
 
 .sidebar-icon.active {
   background-color: #3b82f6;
   color: white;
+  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
 }
 
-.sidebar-icon.active svg {
-  color: white;
+.sidebar-icon.active:hover {
+  background-color: #2563eb;
+  transform: translateY(-2px);
 }
 
 .sidebar-icon img {
@@ -48,41 +71,48 @@
   top: 80px;
   left: 80px;
   background: white;
-  border-radius: 12px;
-  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
+  border-radius: 16px;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.15);
   z-index: 1000;
-  min-width: 280px;
+  min-width: 300px;
   overflow: hidden;
-  border: 1px solid #f3f4f6;
+  border: 1px solid #f1f5f9;
+  backdrop-filter: blur(10px);
 }
 
 .user-dropdown-header {
-  padding: 20px;
-  border-bottom: 1px solid #f3f4f6;
+  padding: 24px;
+  border-bottom: 1px solid #f1f5f9;
   display: flex;
   align-items: center;
   gap: 16px;
+  background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
 }
 
 .user-dropdown-menu {
-  padding: 8px 0;
+  padding: 12px 0;
+  background: white;
 }
 
 .user-dropdown-item {
-  padding: 12px 16px;
+  padding: 16px 24px;
   cursor: pointer;
   display: flex;
   align-items: center;
-  gap: 12px;
-  transition: background-color 0.2s;
+  gap: 16px;
+  transition: all 0.2s ease;
+  color: #64748b;
 }
 
 .user-dropdown-item:hover {
-  background-color: #f9fafb;
+  background-color: #f8fafc;
+  color: #3b82f6;
+  transform: translateX(4px);
 }
 
 .user-dropdown-item span {
   font-size: 14px;
+  font-weight: 500;
 }
 
 @media (max-width: 768px) {
