@@ -3,13 +3,16 @@ import { FaSmile, FaImage, FaPaperclip, FaMicrophone, FaPaperPlane } from 'react
 import { useChat } from '../../context/ChatContext';
 import Avatar from '../shared/Avatar';
 import DateSeparator from '../shared/DateSeparator';
+import ImageModal from '../shared/ImageModal';
 import { formatMessageTime, groupMessagesByDate } from '../../utils/messageUtils';
 import '../../assets/css/WindowChat.css';
 
-const WindowChat = ({ conversation, currentUser, onToggleInfoPanel, isInfoPanelOpen }) => {
+const WindowChat = ({ conversation, currentUser, onToggleInfoPanel, isInfoPanelOpen, onBack }) => {
   const [newMessage, setNewMessage] = useState('');
   const [selectedImage, setSelectedImage] = useState(null);
   const [selectedImagePreview, setSelectedImagePreview] = useState(null);
+  const [imageModalOpen, setImageModalOpen] = useState(false);
+  const [imageModalSrc, setImageModalSrc] = useState('');
   const messagesEndRef = useRef(null);
   const chatMessagesRef = useRef(null);
   const imageInputRef = useRef(null);
@@ -143,6 +146,18 @@ const WindowChat = ({ conversation, currentUser, onToggleInfoPanel, isInfoPanelO
     }
   };
 
+  // Function mở modal xem ảnh
+  const handleImageClick = (imageSrc) => {
+    setImageModalSrc(imageSrc);
+    setImageModalOpen(true);
+  };
+
+  // Function đóng modal
+  const handleCloseModal = () => {
+    setImageModalOpen(false);
+    setImageModalSrc('');
+  };
+
   if (!conversation) {
     return (
       <div className="chat-window">
@@ -163,15 +178,38 @@ const WindowChat = ({ conversation, currentUser, onToggleInfoPanel, isInfoPanelO
   return (
     <div className="chat-window">
       <div className="chat-window-header">
+        {onBack && (
+          <button 
+            onClick={onBack}
+            style={{
+              background: 'none',
+              border: 'none',
+              padding: '8px',
+              borderRadius: '50%',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              transition: 'background-color 0.2s',
+              marginRight: '8px'
+            }}
+            onMouseEnter={(e) => e.target.closest('button').style.backgroundColor = '#f3f4f6'}
+            onMouseLeave={(e) => e.target.closest('button').style.backgroundColor = 'transparent'}
+          >
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="#6b7280">
+              <path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/>
+            </svg>
+          </button>
+        )}
         <Avatar 
           src={conversation.avatar} 
           alt={conversation.title}
           size="medium"
         />
         <div className="chat-window-info">
-          <h3 className="chat-window-name">{conversation.title}</h3>
+          <h3 className="chat-window-name">{conversation.title || conversation.name}</h3>
           <p className="chat-window-status">
-            {conversation.isGroup ? `${conversation.memberCount || 3} members` : 'Active now'}
+            {conversation.type === 'group' || conversation.isGroup ? `${conversation.memberCount || 3} thành viên` : 'Đang hoạt động'}
           </p>
         </div>
         <div style={{ display: 'flex', gap: '8px' }}>
@@ -334,6 +372,8 @@ const WindowChat = ({ conversation, currentUser, onToggleInfoPanel, isInfoPanelO
                       <img 
                         src={item.content || item.text} 
                         alt="Shared image"
+                        style={{ cursor: 'pointer' }}
+                        onClick={() => handleImageClick(item.content || item.text)}
                         onError={(e) => {
                           e.target.style.display = 'none';
                           e.target.nextSibling.style.display = 'block';
@@ -480,6 +520,13 @@ const WindowChat = ({ conversation, currentUser, onToggleInfoPanel, isInfoPanelO
           </div>
         </form>
       </div>
+
+      {/* Image Modal */}
+      <ImageModal 
+        isOpen={imageModalOpen}
+        imageSrc={imageModalSrc}
+        onClose={handleCloseModal}
+      />
     </div>
   );
 };

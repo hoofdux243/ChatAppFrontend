@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useChat } from '../../context/ChatContext';
 import chatService from '../../services/chatService';
 import Avatar from '../shared/Avatar';
+import CreateGroupModal from '../CreateGroupModal/CreateGroupModal';
 import '../../assets/css/ChatList.css';
 
 const ChatList = ({ onSelectConversation, selectedConversation }) => {
@@ -11,6 +12,7 @@ const ChatList = ({ onSelectConversation, selectedConversation }) => {
   const [showSearchResults, setShowSearchResults] = useState(false);
   const [activeTab, setActiveTab] = useState('contacts'); // 'contacts' hoặc 'messages'
   const [chatSearchResults, setChatSearchResults] = useState([]);
+  const [showCreateGroupModal, setShowCreateGroupModal] = useState(false);
   const { conversations, loading, error, loadConversations } = useChat();
 
   // Function để format message content dựa vào messageType
@@ -26,6 +28,36 @@ const ChatList = ({ onSelectConversation, selectedConversation }) => {
     }
     
     return lastMessage.content || 'Chưa có tin nhắn';
+  };
+
+  // Handle create group
+  const handleCreateGroup = async (groupData) => {
+    try {
+      // TODO: Implement create group API call
+      const response = await chatService.createGroup(groupData);
+      
+      if (response && response.result) {
+        // Refresh conversations to show new group
+        await loadConversations();
+        
+        // Optionally select the new group
+        const newGroup = {
+          id: response.result.id,
+          title: groupData.name,
+          avatar: null,
+          lastMessage: 'Nhóm đã được tạo',
+          timestamp: 'Vừa xong',
+          isGroup: true,
+          memberCount: groupData.memberIds.length + 1, // +1 for current user
+          unreadCount: 0
+        };
+        
+        onSelectConversation(newGroup);
+      }
+    } catch (error) {
+      console.error('Error creating group:', error);
+      throw error;
+    }
   };
 
   // Debounce search function
@@ -212,22 +244,40 @@ const ChatList = ({ onSelectConversation, selectedConversation }) => {
     <div className="chat-list-container">
       <div className="chat-list-header">
         <h2>Chats</h2>
-        <button 
-          onClick={handleRefresh}
-          style={{
-            background: 'none',
-            border: 'none',
-            cursor: 'pointer',
-            padding: '4px',
-            borderRadius: '4px',
-            color: '#6b7280'
-          }}
-          title="Refresh"
-        >
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
-            <path d="M17.65 6.35C16.2 4.9 14.21 4 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/>
-          </svg>
-        </button>
+        <div style={{ display: 'flex', gap: '8px' }}>
+          <button 
+            onClick={() => setShowCreateGroupModal(true)}
+            style={{
+              background: 'none',
+              border: 'none',
+              cursor: 'pointer',
+              padding: '4px',
+              borderRadius: '4px',
+              color: '#6b7280'
+            }}
+            title="Tạo nhóm"
+          >
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/>
+            </svg>
+          </button>
+          <button 
+            onClick={handleRefresh}
+            style={{
+              background: 'none',
+              border: 'none',
+              cursor: 'pointer',
+              padding: '4px',
+              borderRadius: '4px',
+              color: '#6b7280'
+            }}
+            title="Refresh"
+          >
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M17.65 6.35C16.2 4.9 14.21 4 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/>
+            </svg>
+          </button>
+        </div>
       </div>
       
       <div className="chat-list-search">
@@ -521,6 +571,13 @@ const ChatList = ({ onSelectConversation, selectedConversation }) => {
           ))
         )}
       </div>
+
+      {/* Create Group Modal */}
+      <CreateGroupModal
+        isOpen={showCreateGroupModal}
+        onClose={() => setShowCreateGroupModal(false)}
+        onCreateGroup={handleCreateGroup}
+      />
     </div>
   );
 };

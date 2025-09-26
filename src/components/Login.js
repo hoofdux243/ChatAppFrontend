@@ -52,88 +52,78 @@ function Login() {
   return (
     <div className="login-container">
       <div className="login-content">
-        {/* Left side - Logo and description */}
-        <div className="login-left">
-          <h1 className="facebook-logo">facebook</h1>
-          <p className="facebook-desc">
-            Facebook giúp bạn kết nối và chia sẻ với mọi người trong cuộc sống của bạn.
-          </p>
-        </div>
+        <div className="login-form-container">
+          <div className="login-header">
+            <h1 className="login-title">Đăng nhập</h1>
+          </div>
 
-        {/* Right side - Login form */}
-        <div>
-          <div className="login-form-container">
-            <form onSubmit={handleSubmit} className="login-form">
-              {error && (
-                <div className="error-message">
-                  {error}
-                </div>
-              )}
-              
-              <input
-                type="text"
-                placeholder="Tên đăng nhập"
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
-                required
-                className="login-input"
-                disabled={loading}
-              />
-              
-              <input
-                type="password"
-                placeholder="Mật khẩu"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-                className="login-input"
-                disabled={loading}
-              />
-
-              <div className="remember-me-container">
-                <label className="remember-me-label">
-                  <input
-                    type="checkbox"
-                    checked={rememberMe}
-                    onChange={(e) => setRememberMe(e.target.checked)}
-                    disabled={loading}
-                    className="remember-me-checkbox"
-                  />
-                  <span className="remember-me-text">Ghi nhớ đăng nhập</span>
-                </label>
+          <form onSubmit={handleSubmit} className="login-form">
+            {error && (
+              <div className="error-message">
+                {error}
               </div>
-              
-              <button
-                type="submit"
-                disabled={loading}
-                className="login-btn"
-              >
-                {loading ? 'Đang đăng nhập...' : 'Đăng nhập'}
-              </button>
-              
-              <button
-                type="button"
-                className="forgot-link"
-                disabled={loading}
-              >
-                Quên mật khẩu?
-              </button>
-              
-              <hr className="divider" />
-              
-              <button
-                type="button"
-                className="create-btn"
-                disabled={loading}
-              >
-                Tạo tài khoản mới
-              </button>
-            </form>
-          </div>
-          
-          <div className="footer">
-            <small>Meta © 2025</small>
-          </div>
+            )}
+            
+            <input
+              type="text"
+              placeholder="Tên đăng nhập hoặc email"
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+              required
+              className="login-input"
+              disabled={loading}
+            />
+            
+            <input
+              type="password"
+              placeholder="Mật khẩu"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
+              className="login-input"
+              disabled={loading}
+            />
+
+            <div className="remember-me-container">
+              <label className="remember-me-label">
+                <input
+                  type="checkbox"
+                  checked={rememberMe}
+                  onChange={(e) => setRememberMe(e.target.checked)}
+                  disabled={loading}
+                  className="remember-me-checkbox"
+                />
+                <span className="remember-me-text">Ghi nhớ đăng nhập</span>
+              </label>
+            </div>
+            
+            <button
+              type="submit"
+              disabled={loading}
+              className="login-btn"
+            >
+              {loading ? 'Đang đăng nhập...' : 'Đăng nhập'}
+            </button>
+            
+            <button
+              type="button"
+              className="forgot-link"
+              disabled={loading}
+            >
+              Quên mật khẩu?
+            </button>
+            
+            <hr className="divider" />
+            
+            <button
+              type="button"
+              className="create-btn"
+              disabled={loading}
+              onClick={() => navigate('/register')}
+            >
+              Tạo tài khoản mới
+            </button>
+          </form>
         </div>
       </div>
     </div>

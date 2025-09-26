@@ -205,10 +205,38 @@
   border-radius: 8px;
   cursor: pointer;
   transition: background-color 0.2s;
+  position: relative;
 }
 
 .setting-item:hover {
   background: #f9fafb;
+}
+
+.setting-item.clickable {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  margin-bottom: 8px;
+}
+
+.setting-item.clickable:hover {
+  background: linear-gradient(135deg, #5a67d8 0%, #6b46c1 100%);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+}
+
+.setting-item.clickable .setting-icon {
+  background: rgba(255, 255, 255, 0.2);
+  color: white;
+}
+
+.setting-item.clickable span {
+  color: white;
+  font-weight: 600;
+}
+
+.setting-arrow {
+  margin-left: auto;
+  color: rgba(255, 255, 255, 0.8);
 }
 
 .setting-icon {

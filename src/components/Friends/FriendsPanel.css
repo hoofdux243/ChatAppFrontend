@@ -1,0 +1,215 @@
+/* Friends Panel - thay thế ChatList với cùng styling */
+.friends-panel {
+  display: flex;
+  flex-direction: column;
+  width: 360px;
+  min-width: 360px;
+  height: 100vh;
+  background-color: white;
+  border-right: 1px solid #e5e7eb;
+  flex-shrink: 0;
+}
+
+/* Friends Tabs - styling giống ChatList items */
+.friends-tabs {
+  display: flex;
+  flex-direction: column;
+  padding: 16px 0;
+}
+
+.friends-tab {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 20px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  color: #6b7280;
+  font-size: 15px;
+  font-weight: 500;
+  border-left: 3px solid transparent;
+}
+
+.friends-tab:hover {
+  background-color: #f9fafb;
+}
+
+.friends-tab.active {
+  background-color: #eff6ff;
+  color: #2563eb;
+  border-left-color: #2563eb;
+}
+
+.friends-tab span {
+  font-size: 15px;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Search Box */
+.friends-search {
+  padding: 12px 16px;
+  border-bottom: 1px solid #e4e6ea;
+}
+
+.search-input-container {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.search-icon {
+  position: absolute;
+  left: 10px;
+  color: #65676b;
+  z-index: 1;
+}
+
+.search-input {
+  width: 100%;
+  padding: 8px 12px 8px 35px;
+  border: 1px solid #ddd;
+  border-radius: 20px;
+  font-size: 14px;
+  background-color: #f0f2f5;
+  transition: all 0.2s ease;
+}
+
+.search-input:focus {
+  outline: none;
+  border-color: #1877f2;
+  background-color: #fff;
+  box-shadow: 0 0 0 2px rgba(24, 119, 242, 0.2);
+}
+
+.search-input::placeholder {
+  color: #65676b;
+}
+
+/* Friends Content */
+.friends-content {
+  flex: 1;
+  overflow-y: auto;
+  padding-top: 8px;
+}
+
+/* Friends List */
+.friends-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.friend-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 16px;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+  border-radius: 8px;
+  margin: 2px 8px;
+}
+
+.friend-item:hover {
+  background-color: #f2f3f5;
+}
+
+.friend-item.selected {
+  background-color: #e7f3ff;
+}
+
+.friend-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.friend-name {
+  font-size: 14px;
+  font-weight: 500;
+  color: #050505;
+  margin-bottom: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.friend-status {
+  font-size: 12px;
+  color: #65676b;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.online-status {
+  color: #42b883;
+  font-weight: 500;
+}
+
+.offline-status {
+  color: #65676b;
+}
+
+/* Loading and Empty States */
+.friends-loading {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 100px;
+  color: #65676b;
+}
+
+.no-contacts,
+.no-content {
+  text-align: center;
+  color: #65676b;
+  font-size: 14px;
+  padding: 20px;
+  margin: 20px 0;
+}
+
+/* Groups and Requests Lists */
+.groups-list,
+.requests-list {
+  padding: 16px;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .friends-tab span {
+    font-size: 12px;
+  }
+  
+  .friend-item {
+    padding: 10px 12px;
+    gap: 8px;
+  }
+  
+  .friend-name {
+    font-size: 13px;
+  }
+  
+  .friend-status {
+    font-size: 11px;
+  }
+}
+
+/* Scrollbar styling */
+.friends-content::-webkit-scrollbar {
+  width: 6px;
+}
+
+.friends-content::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.friends-content::-webkit-scrollbar-thumb {
+  background-color: #c4c4c4;
+  border-radius: 3px;
+}
+
+.friends-content::-webkit-scrollbar-thumb:hover {
+  background-color: #a8a8a8;
+}

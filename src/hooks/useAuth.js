@@ -1,5 +1,6 @@
 import { useReducer, createContext, useContext } from 'react';
 import apiService from '../services/apiService';
+import chatService from '../services/chatService';
 
 // Auth action types
 const AUTH_ACTIONS = {
@@ -136,6 +137,9 @@ export const AuthProvider = ({ children }) => {
     } finally {
       // Clear token từ API service và reset state
       apiService.clearToken();
+      // Clear chat service cache
+      chatService.clearCache();
+      console.log('useAuth: Logging out, clearing all data...');
       dispatch({ type: AUTH_ACTIONS.LOGOUT });
     }
   };

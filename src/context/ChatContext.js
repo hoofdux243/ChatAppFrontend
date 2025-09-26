@@ -38,6 +38,8 @@ export const ChatProvider = ({ children }) => {
         // Transform data từ API response
         const transformedConversations = response.result.map(item => {
           console.log('ChatContext - Processing item:', item);
+          console.log('ChatContext - item.memberId:', item.memberId);
+          console.log('ChatContext - item.roomType:', item.roomType);
           return {
             id: item.chatRoomId,
             title: item.chatRoomName || item.chatRoomAvatar || `Chat ${item.chatRoomId.substring(0, 8)}` || 'Cuộc trò chuyện',
@@ -48,6 +50,7 @@ export const ChatProvider = ({ children }) => {
             isGroup:item.roomType === 'PUBLIC', 
             memberCount: item.memberCount,
             unreadCount: item.readCount || 0,
+            memberId: item.memberId || null, // Thêm memberId cho private chat
             lastRead: item.lastMessage ? item.lastMessage.lastRead : true, // Thêm trường lastRead
             participants: [] // Có thể thêm thông tin participants nếu cần
           };
@@ -102,8 +105,11 @@ export const ChatProvider = ({ children }) => {
       const response = await chatService.getMessagesByIdConversation(conversationId, page, size);
       console.log('ChatContext - Messages API response:', response);
       if (response && response.result && response.result.data) {
-        const currentUserName = chatService.getCurrentUserName(user);
-        const transformedMessages = response.result.data.map(msg => ({
+        const currentUserId = await chatService.getCurrentUserId(user);
+        const currentUsername = chatService.getCurrentUserName(user);
+        const transformedMessages = response.result.data.map(msg => {
+          const isOwn = msg.senderUsername === currentUsername || msg.senderId === currentUserId;
+          return {
           id: msg.messageId,
           text: msg.content,
           senderId: msg.senderId,
@@ -115,8 +121,8 @@ export const ChatProvider = ({ children }) => {
           messageStatus: msg.messageStatus,
           readCount: msg.readCount,
           lastRead: msg.lastRead,
-          isOwn: msg.senderUsername?.toLowerCase() === currentUserName?.toLowerCase()
-        }));
+          isOwn: isOwn
+        }});
         // Reverse messages để tin nhắn cũ nhất ở trên, mới nhất ở dưới
         const sortedMessages = transformedMessages.reverse();
         
@@ -159,7 +165,7 @@ export const ChatProvider = ({ children }) => {
         const newMessage = {
           id: response.result?.messageId || Date.now(),
           text: response.result?.content || messageContent,
-          senderId: response.result?.senderId || 'me',
+          senderId: response.result?.senderId || chatService.getCurrentUserId(user),
           senderName: response.result?.senderName || chatService.getCurrentUserName(user),
           senderUsername: response.result?.senderUsername || chatService.getCurrentUserName(user),
           timestamp: response.result?.sentAt ? new Date(response.result.sentAt) : new Date(),
@@ -175,11 +181,17 @@ export const ChatProvider = ({ children }) => {
           [conversationId]: [...(prev[conversationId] || []), newMessage]
         }));
         
-        // Cập nhật lastMessage trong conversations
+        // Cập nhật lastMessage trong conversations với format phù hợp
+        const lastMessageObject = {
+          content: messageContent,
+          senderName: 'Bạn',
+          messageType: 'TEXT'
+        };
+        
         setConversations(prev => 
           prev.map(conv => 
             conv.id === conversationId 
-              ? { ...conv, lastMessage: messageContent, timestamp: 'Vừa xong' }
+              ? { ...conv, lastMessage: lastMessageObject, timestamp: 'Vừa xong' }
               : conv
           )
         );
@@ -204,9 +216,9 @@ export const ChatProvider = ({ children }) => {
         const newMessage = {
           id: response.result?.messageId || Date.now(),
           content: response.result?.content || 'Image',
-          senderId: response.result?.senderId || 'me',
-          senderName: response.result?.senderName || 'You',
-          senderUsername: response.result?.senderUsername || 'You',
+          senderId: response.result?.senderId || chatService.getCurrentUserId(user),
+          senderName: response.result?.senderName || chatService.getCurrentUserName(user),
+          senderUsername: response.result?.senderUsername || chatService.getCurrentUserName(user),
           timestamp: response.result?.sentAt ? new Date(response.result.sentAt) : new Date(),
           messageType: 'IMAGE',
           messageStatus: 'SENT',
@@ -223,7 +235,7 @@ export const ChatProvider = ({ children }) => {
         // Cập nhật lastMessage trong conversations với format phù hợp
         const lastMessageObject = {
           content: response.result?.content || 'Image',
-          senderName: 'You',
+          senderName: 'Bạn',
           messageType: 'IMAGE'
         };
         
@@ -259,6 +271,40 @@ export const ChatProvider = ({ children }) => {
     }
   }, [isAuthenticated, authLoading, loadConversations]); // Add auth dependencies
 
+  // Clear data when user logs out
+  useEffect(() => {
+    if (!isAuthenticated && !authLoading) {
+      console.log('ChatContext - User logged out, clearing chat data...');
+      setConversations([]);
+      setMessages({});
+      setSelectedConversation(null);
+      setError(null);
+    }
+  }, [isAuthenticated, authLoading]);
+
+  // Clear chat data khi logout
+  const clearChatData = useCallback(() => {
+    setConversations([]);
+    setMessages({});
+    setSelectedConversation(null);
+    setError(null);
+    console.log('ChatContext: Chat data cleared');
+  }, []);
+
+  // Force reload conversations
+  const reloadConversations = useCallback(() => {
+    console.log('ChatContext: Force reloading conversations...');
+    setConversations([]);
+    loadConversations();
+  }, [loadConversations]);
+
+  // Clear data khi user thay đổi hoặc logout
+  useEffect(() => {
+    if (!isAuthenticated) {
+      clearChatData();
+    }
+  }, [isAuthenticated, clearChatData]);
+
   const value = {
     conversations,
     messages,
@@ -270,6 +316,7 @@ export const ChatProvider = ({ children }) => {
     loadMessages,
     sendMessage,
     sendImageMessage,
+    clearChatData, // Thêm function clear data
     
     // Thêm method để load more messages
     loadMoreMessages: useCallback(async (conversationId, page) => {
@@ -288,7 +335,7 @@ export const ChatProvider = ({ children }) => {
             messageStatus: msg.messageStatus,
             readCount: msg.readCount,
             lastRead: msg.lastRead,
-            isOwn: msg.senderUsername === chatService.getCurrentUserName(user)
+            isOwn: user && (msg.senderUsername === user.username || msg.senderId === user.id)
           }));
           
           // Reverse và thêm vào đầu (tin nhắn cũ hơn)

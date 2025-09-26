@@ -1,0 +1,228 @@
+.friends-container {
+  display: flex;
+  height: 100vh;
+  background-color: #f8fafc;
+}
+
+/* Friends Sidebar */
+.friends-sidebar {
+  width: 280px;
+  background-color: #ffffff;
+  border-right: 1px solid #e5e7eb;
+  display: flex;
+  flex-direction: column;
+}
+
+.friends-sidebar-header {
+  padding: 20px;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.friends-sidebar-header h2 {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 600;
+  color: #1f2937;
+}
+
+.friends-sidebar-menu {
+  flex: 1;
+  padding: 16px 0;
+}
+
+.friends-sidebar-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 20px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  color: #6b7280;
+  font-weight: 500;
+}
+
+.friends-sidebar-item:hover {
+  background-color: #f3f4f6;
+  color: #374151;
+}
+
+.friends-sidebar-item.active {
+  background-color: #dbeafe;
+  color: #2563eb;
+  border-right: 3px solid #2563eb;
+}
+
+.friends-sidebar-item.active:hover {
+  background-color: #bfdbfe;
+}
+
+/* Friends Main */
+.friends-main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.friends-main-header {
+  background-color: #ffffff;
+  border-bottom: 1px solid #e5e7eb;
+  padding: 20px;
+}
+
+.friends-tab-info {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.friends-tab-info h3 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+  color: #1f2937;
+}
+
+.friends-tab-info p {
+  margin: 4px 0 0;
+  font-size: 14px;
+  color: #6b7280;
+}
+
+/* Friends Content */
+.friends-content {
+  flex: 1;
+  overflow-y: auto;
+  background-color: #ffffff;
+}
+
+.friends-search {
+  padding: 20px;
+  border-bottom: 1px solid #f3f4f6;
+}
+
+.friends-search-input {
+  width: 100%;
+  padding: 12px 16px;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  font-size: 14px;
+  outline: none;
+  transition: border-color 0.2s ease;
+}
+
+.friends-search-input:focus {
+  border-color: #2563eb;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+}
+
+.friends-list {
+  padding: 0 20px 20px;
+}
+
+.friend-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 0;
+  border-bottom: 1px solid #f3f4f6;
+  transition: background-color 0.2s ease;
+}
+
+.friend-item:hover {
+  background-color: #f9fafb;
+  border-radius: 8px;
+  padding: 12px;
+  margin: 0 -12px;
+}
+
+.friend-item:last-child {
+  border-bottom: none;
+}
+
+.friend-info {
+  flex: 1;
+}
+
+.friend-name {
+  font-weight: 600;
+  color: #1f2937;
+  font-size: 15px;
+  margin-bottom: 2px;
+}
+
+.friend-status {
+  font-size: 13px;
+}
+
+.status-online {
+  color: #059669;
+  font-weight: 500;
+}
+
+.status-offline {
+  color: #6b7280;
+}
+
+.friend-actions {
+  display: flex;
+  gap: 8px;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+.friend-item:hover .friend-actions {
+  opacity: 1;
+}
+
+.friend-action-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 8px;
+  border-radius: 6px;
+  font-size: 16px;
+  transition: background-color 0.2s ease;
+}
+
+.friend-action-btn:hover {
+  background-color: #f3f4f6;
+}
+
+/* Loading and Empty States */
+.friends-loading {
+  text-align: center;
+  padding: 40px 20px;
+  color: #6b7280;
+  font-size: 14px;
+}
+
+.friends-empty {
+  text-align: center;
+  padding: 60px 20px;
+  color: #6b7280;
+  font-size: 16px;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .friends-sidebar {
+    width: 240px;
+  }
+  
+  .friends-sidebar-header {
+    padding: 16px;
+  }
+  
+  .friends-main-header {
+    padding: 16px;
+  }
+  
+  .friends-search {
+    padding: 16px;
+  }
+  
+  .friends-list {
+    padding: 0 16px 16px;
+  }
+}

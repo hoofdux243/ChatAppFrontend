@@ -1,9 +1,24 @@
-import React from 'react';
+import React, { useState } from 'react';
+import UserProfileModal from '../Profile/UserProfileModal';
 import './InfoPanel.css';
 
 const InfoPanel = ({ isOpen, onClose, selectedConversation, currentUser }) => {
   const conversation = selectedConversation || {};
   const isGroup = conversation.isGroup || false;
+  const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
+
+  const handleViewProfile = () => {
+    if (!conversation || isGroup) return;
+    
+    console.log('InfoPanel - handleViewProfile:', {
+      conversation,
+      memberId: conversation.memberId,
+      title: conversation.title,
+      isGroup
+    });
+    
+    setIsProfileModalOpen(true);
+  };
 
   return (
     <div className={`info-panel ${isOpen ? 'open' : ''}`}>
@@ -74,6 +89,18 @@ const InfoPanel = ({ isOpen, onClose, selectedConversation, currentUser }) => {
               </h4>
               
               <div className="settings-list">
+                {/* Nút xem trang cá nhân - chỉ hiện cho chat private */}
+                {!isGroup && (
+                  <div className="setting-item" onClick={handleViewProfile}>
+                    <div className="setting-icon">
+                      <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/>
+                      </svg>
+                    </div>
+                    <span>Xem trang cá nhân</span>
+                  </div>
+                )}
+
                 <div className="setting-item">
                   <div className="setting-icon">
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
@@ -154,6 +181,14 @@ const InfoPanel = ({ isOpen, onClose, selectedConversation, currentUser }) => {
           </div>
         </div>
       )}
+      
+      {/* User Profile Modal */}
+      <UserProfileModal
+        isOpen={isProfileModalOpen}
+        onClose={() => setIsProfileModalOpen(false)}
+        userId={conversation.memberId}
+        userName={conversation.title}
+      />
     </div>
   );
 };

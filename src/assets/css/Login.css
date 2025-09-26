@@ -6,46 +6,45 @@
   min-height: 100vh;
   background-color: #f0f2f5;
   font-family: 'Helvetica Neue', Arial, sans-serif;
+  padding: 20px;
 }
 
 .login-content {
   display: flex;
+  justify-content: center;
   align-items: center;
-  gap: 60px;
-  max-width: 980px;
   width: 100%;
-  padding: 20px;
-}
-
-/* Left side - Logo and description */
-.login-left {
-  flex: 1;
   max-width: 500px;
 }
 
-.facebook-logo {
-  color: #1877f2;
-  font-size: 60px;
-  font-weight: bold;
-  margin: 0 0 20px 0;
-  font-family: 'Klavika', sans-serif;
-}
-
-.facebook-desc {
-  font-size: 28px;
-  line-height: 32px;
-  width: 500px;
-  color: #1c1e21;
-  margin: 0;
-}
-
-/* Right side - Login form */
+/* Login form container - centered */
 .login-form-container {
   background: white;
   border-radius: 8px;
   box-shadow: 0 2px 4px rgba(0, 0, 0, .1), 0 8px 16px rgba(0, 0, 0, .1);
-  padding: 20px;
-  width: 396px;
+  padding: 40px;
+  width: 100%;
+  max-width: 400px;
+}
+
+/* Login header */
+.login-header {
+  text-align: center;
+  margin-bottom: 30px;
+}
+
+.login-title {
+  color: #1c1e21;
+  font-size: 32px;
+  font-weight: bold;
+  margin: 0 0 8px 0;
+}
+
+.login-subtitle {
+  color: #606770;
+  font-size: 16px;
+  margin: 0;
+  font-weight: normal;
 }
 
 .login-form {
@@ -215,42 +214,22 @@
 }
 
 /* Responsive Design */
-@media (max-width: 900px) {
-  .login-content {
-    flex-direction: column;
-    gap: 30px;
-    text-align: center;
-  }
-  
-  .login-left {
-    max-width: none;
-  }
-  
-  .facebook-desc {
-    width: auto;
-    font-size: 24px;
-    line-height: 28px;
-  }
-}
-
 @media (max-width: 500px) {
   .login-container {
-    padding: 20px;
+    padding: 16px;
   }
   
   .login-form-container {
-    width: 100%;
-    max-width: 396px;
+    padding: 32px 24px;
     box-shadow: none;
     border: 1px solid #dddfe2;
   }
   
-  .facebook-logo {
-    font-size: 48px;
+  .login-title {
+    font-size: 28px;
   }
   
-  .facebook-desc {
-    font-size: 20px;
-    line-height: 24px;
+  .login-subtitle {
+    font-size: 14px;
   }
 }

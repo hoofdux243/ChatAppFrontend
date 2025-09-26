@@ -1,4 +1,4 @@
-// Storage utility for handling localStorage and cookies
+// Storage utility - không dùng localStorage, chỉ dùng sessionStorage và cookies
 class StorageService {
   // Cookie methods
   static setCookie(name, value, days = 7) {
@@ -26,56 +26,51 @@ class StorageService {
     document.cookie = `${name}=; Path=/; Expires=Thu, 01 Jan 1970 00:00:01 GMT;`;
   }
 
-  // localStorage methods with error handling
+  // sessionStorage methods với error handling
   static setItem(key, value) {
     try {
-      localStorage.setItem(key, JSON.stringify(value));
+      sessionStorage.setItem(key, JSON.stringify(value));
     } catch (error) {
-      console.error('Error saving to localStorage:', error);
+      console.error('Error saving to sessionStorage:', error);
     }
   }
 
   static getItem(key) {
     try {
-      const item = localStorage.getItem(key);
+      const item = sessionStorage.getItem(key);
       return item ? JSON.parse(item) : null;
     } catch (error) {
-      console.error('Error reading from localStorage:', error);
+      console.error('Error reading from sessionStorage:', error);
       return null;
     }
   }
 
   static removeItem(key) {
     try {
-      localStorage.removeItem(key);
+      sessionStorage.removeItem(key);
     } catch (error) {
-      console.error('Error removing from localStorage:', error);
+      console.error('Error removing from sessionStorage:', error);
     }
   }
 
-  // Combined methods - use cookies for sensitive data, localStorage for others
+  // Token methods - không dùng localStorage
   static setToken(token, rememberMe = false) {
-    // Always use localStorage with key 'token' for compatibility
-    localStorage.setItem('token', token);
-    
     if (rememberMe) {
-      // Also use cookie for persistent login
+      // Sử dụng cookie cho persistent login
       this.setCookie('access_token', token, 7); // 7 days
     } else {
-      // Also use sessionStorage for session-only login
+      // Sử dụng sessionStorage cho session-only login
       sessionStorage.setItem('access_token', token);
     }
   }
 
   static getToken() {
-    // Check localStorage first (for axios compatibility), then sessionStorage, then cookies
-    return localStorage.getItem('token') || 
-           sessionStorage.getItem('access_token') || 
+    // Kiểm tra sessionStorage trước, sau đó cookies
+    return sessionStorage.getItem('access_token') || 
            this.getCookie('access_token');
   }
 
   static clearToken() {
-    localStorage.removeItem('token');
     sessionStorage.removeItem('access_token');
     this.deleteCookie('access_token');
   }

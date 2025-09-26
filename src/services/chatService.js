@@ -93,7 +93,7 @@ const chatService = {
         }
     },
 
-    // Tạo chatroom mới
+    // Tạo phòng chat mới
     createChatRoom: async (chatRoomData) => {
         try {
             const response = await chatApi.createChatRoom(chatRoomData);
@@ -104,108 +104,95 @@ const chatService = {
         }
     },
 
-    // Lấy tên user từ context (không dùng localStorage)
-    getUserName: () => {
+    // Lấy username - Không dùng localStorage
+    getUserName: (currentUser = null) => {
         try {
-            // Sẽ được lấy từ context thay vì localStorage
-            return "Current User";
+            if (currentUser && (currentUser.username || currentUser.name)) {
+                return currentUser.username || currentUser.name;
+            }
+            return 'Unknown User';
         } catch (error) {
-            console.error('Error getting user name:', error);
-            return 'User';
+            console.error('Error getting username:', error);
+            return 'Unknown User';
         }
     },
 
-    // Lấy current user username từ parameter hoặc context
+    // Lấy ID người dùng hiện tại  
+    getCurrentUserId: async (currentUser = null) => {
+        // Trả về user hiện tại từ context - không dùng localStorage
+        if (currentUser && (currentUser.username || currentUser.id)) {
+            return currentUser.username || currentUser.id;
+        }
+        
+        return null; // Không có user
+    },
+
+    // Lấy tên người dùng hiện tại - không dùng localStorage
     getCurrentUserName: (currentUser = null) => {
         try {
-            if (currentUser) {
-                // Thử các trường có thể có trong user object
-                return currentUser.username || currentUser.name || currentUser.email || 'currentUser';
+            if (currentUser && (currentUser.username || currentUser.name)) {
+                return currentUser.username || currentUser.name;
             }
-            // Fallback
-            return 'currentUser';
+            
+            return null; // Không có user
         } catch (error) {
             console.error('Error getting current user name:', error);
-            return 'CurrentUser';
+            return null;
         }
     },
 
-    // Lấy thông tin user hiện tại bao gồm avatar
-    getCurrentUser: async () => {
+    // Lấy thông tin người dùng hiện tại - không dùng localStorage
+    getCurrentUser: async (currentUser = null) => {
         try {
-            // Thử lấy từ localStorage trước (user_info từ login response)
-            const cachedUserInfo = localStorage.getItem("user_info");
-            if (cachedUserInfo) {
-                const user = JSON.parse(cachedUserInfo);
-                return {
-                    username: user.username || user.name || user.senderUsername || user.firstName,
-                    name: user.name || user.username || user.firstName || 'Current User',
-                    email: user.email || '',
-                    avatar: user.avatar || user.senderAvatar || null,
-                    id: user.id || user.senderId || null
-                };
+            // Sử dụng user từ context thay vì localStorage
+            if (currentUser) {
+                return currentUser;
             }
+
+            // Nếu không có currentUser, gọi API
+            const response = await chatApi.getCurrentUser();
+            const userData = response.data;
             
-            // Nếu không có trong localStorage hoặc không có avatar, gọi API
-            try {
-                const response = await chatApi.getCurrentUser();
-                if (response && response.data) {
-                    const userData = response.data.result || response.data;
-                    const userInfo = {
-                        username: userData.username || userData.name || userData.senderUsername,
-                        name: userData.name || userData.username || 'Current User',
-                        email: userData.email || '',
-                        avatar: userData.avatar || userData.senderAvatar || null,
-                        id: userData.id || userData.senderId || null
-                    };
-                    
-                    // Cập nhật localStorage
-                    localStorage.setItem("user_info", JSON.stringify(userData));
-                    return userInfo;
-                }
-            } catch (apiError) {
-                console.error('Error fetching user from API:', apiError);
-            }
-            
-            // Fallback: thử lấy từ key 'user' (legacy)
-            const fallbackUserInfo = localStorage.getItem("user");
-            if (fallbackUserInfo) {
-                const user = JSON.parse(fallbackUserInfo);
-                return {
-                    username: user.username || user.name || user.senderUsername || user.firstName,
-                    name: user.name || user.username || user.firstName || 'Current User',
-                    email: user.email || '',
-                    avatar: user.avatar || user.senderAvatar || null,
-                    id: user.id || user.senderId || null
-                };
-            }
-            
-            return {
-                username: 'vu1',
-                name: 'vu1',
-                email: '',
-                avatar: null,
-                id: null
-            };
+            return userData;
         } catch (error) {
             console.error('Error getting current user:', error);
-            return {
-                username: 'CurrentUser',
-                name: 'CurrentUser',
-                email: '',
-                avatar: null,
-                id: null
-            };
+            return null;
         }
     },
 
-    // Tìm kiếm users
+    // Format thời gian tin nhắn
+    formatMessageTime: (timestamp) => {
+        if (!timestamp) return '';
+        
+        try {
+            const date = new Date(timestamp);
+            const now = new Date();
+            const diffInMs = now - date;
+            const diffInMinutes = Math.floor(diffInMs / (1000 * 60));
+            const diffInHours = Math.floor(diffInMs / (1000 * 60 * 60));
+            const diffInDays = Math.floor(diffInMs / (1000 * 60 * 60 * 24));
+
+            if (diffInMinutes < 1) {
+                return 'Vừa xong';
+            } else if (diffInMinutes < 60) {
+                return `${diffInMinutes} phút trước`;
+            } else if (diffInHours < 24) {
+                return `${diffInHours} giờ trước`;
+            } else if (diffInDays < 7) {
+                return `${diffInDays} ngày trước`;
+            } else {
+                return date.toLocaleDateString('vi-VN');
+            }
+        } catch (error) {
+            console.error('Error formatting message time:', error);
+            return '';
+        }
+    },
+
+    // Tìm kiếm người dùng
     searchUsers: async (keyword) => {
         try {
-            if (!keyword || keyword.trim() === '') {
-                return [];
-            }
-            const response = await chatApi.searchUsers(keyword.trim());
+            const response = await chatApi.searchUsers(keyword);
             return response.data;
         } catch (error) {
             console.error('Error searching users:', error);
@@ -213,38 +200,39 @@ const chatService = {
         }
     },
 
-    // Format thời gian tin nhắn
-    formatMessageTime: (timestamp) => {
+    // Tìm kiếm tin nhắn
+    searchMessages: async (keyword) => {
         try {
-            const date = new Date(timestamp);
-            const now = new Date();
-            const diffMs = now - date;
-            const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
-            
-            if (diffDays === 0) {
-                return date.toLocaleTimeString('vi-VN', { 
-                    hour: '2-digit', 
-                    minute: '2-digit',
-                    hour12: false 
-                });
-            } else if (diffDays === 1) {
-                return 'Hôm qua';
-            } else if (diffDays < 7) {
-                const weekdays = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'];
-                return weekdays[date.getDay()];
-            } else {
-                return date.toLocaleDateString('vi-VN', { 
-                    day: '2-digit', 
-                    month: '2-digit' 
-                });
-            }
+            const response = await chatApi.searchMessages(keyword);
+            return response.data;
         } catch (error) {
-            console.error('Error formatting time:', error);
-            return '';
+            console.error('Error searching messages:', error);
+            throw error;
         }
     },
 
-    // Lấy thông tin profile user
+    // Lấy thông tin user profile theo ID
+    getUserProfileById: async (userId) => {
+        try {
+            const token = getAuthToken();
+            const config = {
+                headers: {
+                    ...(token && { Authorization: `Bearer ${token}` })
+                }
+            };
+
+            const response = await axios.get(
+                `http://localhost:8080/chatapp/api/users/${userId}/profile`,
+                config
+            );
+            return response.data;
+        } catch (error) {
+            console.error('Error fetching user profile by ID:', error);
+            throw error;
+        }
+    },
+
+    // Lấy thông tin user profile
     getUserProfile: async (userId) => {
         try {
             const response = await chatApi.getUserProfile(userId);
@@ -252,6 +240,73 @@ const chatService = {
         } catch (error) {
             console.error('Error fetching user profile:', error);
             throw error;
+        }
+    },
+
+    getContacts: async (keyword = '') => {
+        try {
+            const token = getAuthToken();
+            const config = {
+                headers: {
+                    ...(token && { Authorization: `Bearer ${token}` })
+                }
+            };
+
+            let url = 'http://localhost:8080/chatapp/api/contacts';
+            if (keyword && keyword.trim()) {
+                url += `?keyword=${encodeURIComponent(keyword.trim())}`;
+            }
+
+            const response = await axios.get(url, config);
+            return response.data;
+        } catch (error) {
+            console.error('Error fetching contacts:', error);
+            throw error;
+        }
+    },
+
+    createGroup: async (groupData) => {
+        try {
+            const token = getAuthToken();
+            const config = {
+                headers: {
+                    'Content-Type': 'application/json',
+                    ...(token && { Authorization: `Bearer ${token}` })
+                }
+            };
+
+            const response = await axios.post(
+                'http://localhost:8080/chatapp/api/chatrooms/group',
+                {
+                    name: groupData.name,
+                    memberIds: groupData.memberIds
+                },
+                config
+            );
+            return response.data;
+        } catch (error) {
+            console.error('Error creating group:', error);
+            throw error;
+        }
+    },
+
+    // Lấy danh sách chatrooms public
+    getPublicChatrooms: async (keyword = '') => {
+        try {
+            const response = await chatApi.getPublicChatrooms(keyword);
+            return response.data;
+        } catch (error) {
+            console.error('Error fetching public chatrooms:', error);
+            throw error;
+        }
+    },
+
+    // Clear cache - không cần localStorage
+    clearCache: () => {
+        try {
+            console.log('ChatService: Cache cleared (no localStorage)');
+        } catch (error) {
+            console.error('Error clearing cache:', error);
         }
     }
 };

@@ -48,6 +48,16 @@ const chatApi = {
     getUserProfile: async (userId) => {
         const response = await axios.get(`${addressAPI}/api/users/profile`);
         return response;
+    },
+
+    // Lấy danh sách chatrooms public với keyword
+    getPublicChatrooms: async (keyword = '') => {
+        let url = `${addressAPI}/api/chatrooms?type=PUBLIC`;
+        if (keyword) {
+            url += `&keyword=${encodeURIComponent(keyword)}`;
+        }
+        const response = await axios.get(url);
+        return response;
     }
 };
 
