@@ -1,7 +1,8 @@
 html, body {
   margin: 0;
-  padding: 0;
-  height: 100%;
+  padding: 0; /* ✅ Remove any padding */
+  height: 100%; /* ✅ Full height */
+  overflow: hidden; /* ✅ Prevent body scroll */
 }
 
 body {
@@ -13,7 +14,8 @@ body {
 }
 
 #root {
-  height: 100vh;
+  height: 100vh; /* ✅ Full viewport height */
+  overflow: hidden; /* ✅ Prevent root scroll */
 }
 
 code {

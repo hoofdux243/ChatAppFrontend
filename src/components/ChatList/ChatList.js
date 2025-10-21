@@ -3,6 +3,7 @@ import { useChat } from '../../context/ChatContext';
 import chatService from '../../services/chatService';
 import Avatar from '../shared/Avatar';
 import CreateGroupModal from '../CreateGroupModal/CreateGroupModal';
+import { formatLastSeen } from '../../utils/timeUtils';
 import '../../assets/css/ChatList.css';
 
 const ChatList = ({ onSelectConversation, selectedConversation }) => {
@@ -497,6 +498,7 @@ const ChatList = ({ onSelectConversation, selectedConversation }) => {
                           >
                             {formatMessageContent(conversation.lastMessage)}
                           </p>
+
                         </div>
                         <div className="chat-item-right">
                           <span className="chat-item-time">{conversation.timestamp || ''}</span>
@@ -524,51 +526,66 @@ const ChatList = ({ onSelectConversation, selectedConversation }) => {
           </div>
         ) : (
           // Hiển thị tất cả conversations như bình thường
-          conversations.map((conversation) => (
-            <div
-              key={conversation.id}
-              className={`chat-item ${selectedConversation?.id === conversation.id ? 'active' : ''}`}
-              onClick={() => handleConversationClick(conversation)}
-            >
-              <Avatar 
-                src={conversation.avatar} 
-                alt={conversation.title || 'Avatar'}
-                size="medium"
-              />
-              <div className="chat-item-content">
-                <h4 className="chat-item-name">
-                  {conversation.title || 'Cuộc trò chuyện'}
-                  {conversation.isGroup && (
-                    <span style={{ 
-                      marginLeft: '6px', 
-                      fontSize: '12px', 
-                      color: '#6b7280',
-                      fontWeight: '400'
-                    }}>
-                      (Group)
+          conversations.map((conversation) => {
+            // Debug: Log thông tin conversation để kiểm tra user status
+            if (conversation.roomType === 'PRIVATE') {
+              console.log('🔍 Chat conversation:', {
+                id: conversation.id,
+                title: conversation.title,
+                memberId: conversation.memberId,
+                isOnline: conversation.isOnline,
+                lastSeen: conversation.lastSeen,
+                roomType: conversation.roomType
+              });
+            }
+            
+            return (
+              <div
+                key={conversation.id}
+                className={`chat-item ${selectedConversation?.id === conversation.id ? 'active' : ''}`}
+                onClick={() => handleConversationClick(conversation)}
+              >
+                <Avatar 
+                  src={conversation.avatar} 
+                  alt={conversation.title || 'Avatar'}
+                  size="medium"
+                />
+                <div className="chat-item-content">
+                  <h4 className="chat-item-name">
+                    {conversation.title || 'Cuộc trò chuyện'}
+                    {conversation.isGroup && (
+                      <span style={{ 
+                        marginLeft: '6px', 
+                        fontSize: '12px', 
+                        color: '#6b7280',
+                        fontWeight: '400'
+                      }}>
+                        (Group)
+                      </span>
+                    )}
+                  </h4>
+                  <p 
+                    className="chat-item-message"
+                    style={{ 
+                      fontWeight: conversation.lastRead === false ? '600' : 'normal',
+                      color: conversation.lastRead === false ? '#1f2937' : '#6b7280'
+                    }}
+                  >
+                    {formatMessageContent(conversation.lastMessage)}
+                  </p>
+
+                </div>
+                <div className="chat-item-right">
+                  <span className="chat-item-time">{conversation.timestamp || ''}</span>
+                  {(conversation.unreadCount || 0) > 0 && (
+                    <span className="chat-item-unread">
+                      {conversation.unreadCount}
                     </span>
                   )}
-                </h4>
-                <p 
-                  className="chat-item-message"
-                  style={{ 
-                    fontWeight: conversation.lastRead === false ? '600' : 'normal',
-                    color: conversation.lastRead === false ? '#1f2937' : '#6b7280'
-                  }}
-                >
-                  {formatMessageContent(conversation.lastMessage)}
-                </p>
+                </div>
               </div>
-              <div className="chat-item-right">
-                <span className="chat-item-time">{conversation.timestamp || ''}</span>
-                {(conversation.unreadCount || 0) > 0 && (
-                  <span className="chat-item-unread">
-                    {conversation.unreadCount}
-                  </span>
-                )}
-              </div>
-            </div>
-          ))
+            );
+          })
         )}
       </div>
 

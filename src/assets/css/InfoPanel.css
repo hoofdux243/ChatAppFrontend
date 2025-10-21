@@ -1,9 +1,13 @@
 /* InfoPanel Component Styles */
 .info-panel {
-  width: 300px;
+  width: 100%;
+  height: 100vh;
   background-color: white;
-  border-left: 1px solid #e5e7eb;
-  padding: 20px;
+  border-left: none;
+  padding: 24px;
+  margin: 0;
+  box-sizing: border-box;
+  overflow-y: auto;
 }
 
 .info-panel-avatar {
@@ -21,6 +25,8 @@
   font-weight: 600;
   color: #1f2937;
   margin: 0 0 8px 0;
+  word-wrap: break-word; /* ✅ Break long names */
+  overflow-wrap: break-word; /* ✅ Handle overflow text */
 }
 
 .info-panel-status {
@@ -28,4 +34,28 @@
   color: #6b7280;
   font-size: 14px;
   margin: 0 0 24px 0;
+  word-wrap: break-word; /* ✅ Break long text */
+  overflow-wrap: break-word; /* ✅ Handle overflow text */
+}
+
+/* ✅ General text overflow handling for InfoPanel */
+.info-panel * {
+  max-width: 100%;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+}
+
+/* ✅ Handle buttons and interactive elements */
+.info-panel button,
+.info-panel .btn {
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+/* ✅ Handle lists and content sections */
+.info-panel ul,
+.info-panel ol,
+.info-panel div {
+  max-width: 100%;
+  overflow-wrap: break-word;
 }

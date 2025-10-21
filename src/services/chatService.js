@@ -1,6 +1,7 @@
 import chatApi from "../api/chatApi";
 import axios from 'axios';
 import { getAuthToken } from '../utils/axiosConfig';
+import webSocketService from './webSocketService';
 
 const chatService = {
     // Lấy danh sách conversation theo user ID
@@ -36,31 +37,44 @@ const chatService = {
         }
     },
 
-    // Gửi tin nhắn
+    // Gửi tin nhắn qua WebSocket
     sendMessage: async (chatroomId, messageData) => {
         try {
-            // TEXT cũng dùng FormData như IMAGE
-            const formData = new FormData();
-            formData.append('content', messageData.content);
-            formData.append('messageType', messageData.messageType);
+            console.log('📤 Sending message via WebSocket:', { chatroomId, messageData });
             
-            // Dùng axios thuần như image
-            const token = getAuthToken();
-            const config = {
-                headers: {
-                    ...(token && { Authorization: `Bearer ${token}` })
-                }
-            };
+            // Sử dụng WebSocket thay vì HTTP API
+            const response = await webSocketService.sendMessage(chatroomId, messageData);
+            console.log('✅ Message sent successfully via WebSocket:', response);
             
-            const response = await axios.post(
-                `http://localhost:8080/chatapp/api/chatrooms/${chatroomId}/send-message`,
-                formData,
-                config
-            );
-            return response.data;
+            return response;
         } catch (error) {
-            console.error('Error sending message:', error);
-            throw error;
+            console.error('❌ Error sending message via WebSocket:', error);
+            
+            // Fallback về HTTP API nếu WebSocket fail
+            console.log('🔄 Falling back to HTTP API...');
+            try {
+                const formData = new FormData();
+                formData.append('content', messageData.content);
+                formData.append('messageType', messageData.messageType);
+                
+                const token = getAuthToken();
+                const config = {
+                    headers: {
+                        ...(token && { Authorization: `Bearer ${token}` })
+                    }
+                };
+                
+                const response = await axios.post(
+                    `http://localhost:8080/chatapp/api/chatrooms/${chatroomId}/send-message`,
+                    formData,
+                    config
+                );
+                console.log('✅ Message sent via HTTP API fallback:', response.data);
+                return response.data;
+            } catch (httpError) {
+                console.error('❌ HTTP API fallback also failed:', httpError);
+                throw httpError;
+            }
         }
     },
 

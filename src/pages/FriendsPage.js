@@ -1,33 +1,15 @@
-import React, { useState, useEffect } from 'react';
-import { useAuth } from '../hooks/useAuth';
+import React, { useState } from 'react';
 import { useChat } from '../context/ChatContext';
-import Sidebar from '../components/Sidebar/Sidebar';
+import { MainLayout } from '../components/Layout';
 import FriendsPanel from '../components/Friends/FriendsPanel';
 import FriendsMainContent from '../components/Friends/FriendsMainContent';
 import WindowChat from '../components/WindowChat/WindowChat';
-import InfoPanel from '../components/InfoPanel/InfoPanel';
-import '../assets/css/ChatPage.css';
 
 const FriendsPage = () => {
-  const [currentUser, setCurrentUser] = useState(null);
   const [activeTab, setActiveTab] = useState('friends');
   const [friendsCount, setFriendsCount] = useState(0);
   const [selectedChat, setSelectedChat] = useState(null);
-  const [isInfoPanelOpen, setIsInfoPanelOpen] = useState(false);
-  const { user } = useAuth(); // Lấy user từ context
   const { setSelectedConversation } = useChat();
-
-  useEffect(() => {
-    // Sử dụng user từ auth context - copy y hệt từ ChatPage
-    if (user) {
-      setCurrentUser({
-        id: user.id || 'me',
-        username: user.username || user.name || 'Current User',
-        email: user.email || 'user@example.com',
-        avatar: user.avatar || null
-      });
-    }
-  }, [user]); // Dependency là user từ context
 
   const handleTabChange = (tab) => {
     setActiveTab(tab);
@@ -58,51 +40,37 @@ const FriendsPage = () => {
     setSelectedConversation(null);
   };
 
-  const handleToggleInfoPanel = () => {
-    setIsInfoPanelOpen(!isInfoPanelOpen);
-  };
+  // 📋 Left Panel Component
+  const leftPanel = (
+    <FriendsPanel 
+      activeTab={activeTab}
+      onTabChange={handleTabChange}
+    />
+  );
 
-  const handleCloseInfoPanel = () => {
-    setIsInfoPanelOpen(false);
-  };
+  // 💬 Main Content Component - Conditional rendering
+  const mainContent = selectedChat ? (
+    <WindowChat 
+      conversation={selectedChat}
+      onBack={handleBackToFriends}
+    />
+  ) : (
+    <FriendsMainContent 
+      activeTab={activeTab}
+      friendsCount={friendsCount}
+      onFriendsCountChange={handleFriendsCountChange}
+      onSelectChat={handleSelectChat}
+    />
+  );
 
   return (
-    <div className="chat-main-container">
-      <Sidebar user={currentUser} />
-      
-      <FriendsPanel 
-        activeTab={activeTab}
-        onTabChange={handleTabChange}
-      />
-      
-      <div className="chat-window-container">
-        {selectedChat ? (
-          <WindowChat 
-            conversation={selectedChat}
-            currentUser={currentUser}
-            onToggleInfoPanel={handleToggleInfoPanel}
-            isInfoPanelOpen={isInfoPanelOpen}
-            onBack={handleBackToFriends}
-          />
-        ) : (
-          <FriendsMainContent 
-            activeTab={activeTab}
-            friendsCount={friendsCount}
-            onFriendsCountChange={handleFriendsCountChange}
-            onSelectChat={handleSelectChat}
-          />
-        )}
-      </div>
-
-      {selectedChat && (
-        <InfoPanel 
-          isOpen={isInfoPanelOpen}
-          onClose={handleCloseInfoPanel}
-          selectedConversation={selectedChat}
-          currentUser={currentUser}
-        />
-      )}
-    </div>
+    <MainLayout
+      leftPanel={leftPanel}
+      mainContent={mainContent}
+      showInfoPanel={Boolean(selectedChat)}
+      selectedConversation={selectedChat}
+      className="main-layout--friends"
+    />
   );
 };
 

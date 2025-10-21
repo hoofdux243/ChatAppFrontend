@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import chatService from '../../services/chatService';
 import './UserProfileModal.css';
 
@@ -70,7 +71,7 @@ const UserProfileModal = ({ isOpen, onClose, userId, userName }) => {
 
   if (!isOpen) return null;
 
-  return (
+  const modalContent = (
     <div className="user-profile-modal-overlay" onClick={handleClose}>
       <div className="user-profile-modal" onClick={(e) => e.stopPropagation()}>
         <div className="user-profile-header">
@@ -137,6 +138,9 @@ const UserProfileModal = ({ isOpen, onClose, userId, userName }) => {
       </div>
     </div>
   );
+
+  // Render modal using portal to body
+  return createPortal(modalContent, document.body);
 };
 
 export default UserProfileModal;

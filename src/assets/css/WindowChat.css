@@ -1,7 +1,7 @@
 /* WindowChat Component Styles */
 .chat-window-container {
   flex: 1;
-  background-color: #dbeafe;
+  background-color: transparent; /* ✅ Remove blue background */
   display: flex;
   height: 100vh;
   overflow: hidden;
@@ -19,10 +19,9 @@
   flex-direction: column;
   background-color: white;
   margin: 0;
-  width: 100%;
-  height: 100%;
-  max-width: 100%;
+  padding: 0;
   overflow: hidden;
+  box-sizing: border-box;
 }
 
 .chat-window-header {
@@ -70,7 +69,7 @@
 
 .message {
   display: flex;
-  margin-bottom: 16px;
+  margin-bottom: 8px;
   align-items: flex-end;
 }
 

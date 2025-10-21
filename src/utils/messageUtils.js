@@ -1,68 +1,82 @@
 // Utility functions for message time formatting
 
 export const formatMessageTime = (timestamp) => {
-  return new Date(timestamp).toLocaleTimeString([], { 
-    hour: '2-digit', 
-    minute: '2-digit' 
-  });
+  if (!timestamp) return ''; 
+  try {
+    return new Date(timestamp).toLocaleTimeString([], { 
+      hour: '2-digit', 
+      minute: '2-digit' 
+    });
+  } catch (error) {
+    console.error('Error formatting time:', error);
+    return '';
+  }
 };
 
 export const formatMessageDate = (timestamp) => {
-  const messageDate = new Date(timestamp);
-  const today = new Date();
-  const yesterday = new Date(today);
-  yesterday.setDate(today.getDate() - 1);
+  if (!timestamp) return '';
+  
+  try {
+    // Parse ISO timestamp correctly
+    const messageDate = new Date(timestamp);
+    
+    // Check if date is valid
+    if (isNaN(messageDate.getTime())) {
+      console.error('Invalid date:', timestamp);
+      return '';
+    }
+    
+    const today = new Date();
 
-  // Reset time để so sánh chỉ ngày
-  const messageDateOnly = new Date(messageDate.getFullYear(), messageDate.getMonth(), messageDate.getDate());
-  const todayOnly = new Date(today.getFullYear(), today.getMonth(), today.getDate());
-  const yesterdayOnly = new Date(yesterday.getFullYear(), yesterday.getMonth(), yesterday.getDate());
+    // Use date strings for comparison to avoid timezone issues
+    const messageDateStr = messageDate.toLocaleDateString('en-CA'); // YYYY-MM-DD format
+    const todayDateStr = today.toLocaleDateString('en-CA');
+    const yesterday = new Date(today);
+    yesterday.setDate(today.getDate() - 1);
+    const yesterdayDateStr = yesterday.toLocaleDateString('en-CA');
 
-  if (messageDateOnly.getTime() === todayOnly.getTime()) {
-    return 'Hôm nay';
-  } else if (messageDateOnly.getTime() === yesterdayOnly.getTime()) {
-    return 'Hôm qua';
-  } else {
-    // Format: "T6 22/08/2025" 
-    return messageDate.toLocaleDateString('vi-VN', {
-      weekday: 'short',
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric'
-    });
+    if (messageDateStr === todayDateStr) {
+      return 'Hôm nay';
+    } else if (messageDateStr === yesterdayDateStr) {
+      return 'Hôm qua';
+    } else {
+      // Format: "22/08/2025"
+      return messageDate.toLocaleDateString('vi-VN', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric'
+      });
+    }
+  } catch (error) {
+    console.error('Error formatting date:', error);
+    return '';
   }
 };
 
 export const shouldShowDateSeparator = (currentMessage, previousMessage) => {
   if (!previousMessage) return true;
+  if (!currentMessage.sentAt || !previousMessage.sentAt) return false;
   
-  const currentDate = new Date(currentMessage.timestamp);
-  const previousDate = new Date(previousMessage.timestamp);
-  
-  // Reset time để so sánh chỉ ngày
-  const currentDateOnly = new Date(currentDate.getFullYear(), currentDate.getMonth(), currentDate.getDate());
-  const previousDateOnly = new Date(previousDate.getFullYear(), previousDate.getMonth(), previousDate.getDate());
-  
-  return currentDateOnly.getTime() !== previousDateOnly.getTime();
+  try {
+    const currentDate = new Date(currentMessage.sentAt);
+    const previousDate = new Date(previousMessage.sentAt);
+    
+    // Reset time để so sánh chỉ ngày
+    const currentDateOnly = new Date(currentDate.getFullYear(), currentDate.getMonth(), currentDate.getDate());
+    const previousDateOnly = new Date(previousDate.getFullYear(), previousDate.getMonth(), previousDate.getDate());
+    
+    return currentDateOnly.getTime() !== previousDateOnly.getTime();
+  } catch (error) {
+    console.error('Error comparing dates:', error);
+    return false;
+  }
 };
 
 export const groupMessagesByDate = (messages) => {
-  return messages.reduce((groups, message, index) => {
-    const shouldShowSeparator = shouldShowDateSeparator(message, messages[index - 1]);
-    
-    if (shouldShowSeparator) {
-      groups.push({
-        type: 'date-separator',
-        date: formatMessageDate(message.timestamp),
-        timestamp: message.timestamp
-      });
-    }
-    
-    groups.push({
-      type: 'message',
-      ...message
-    });
-    
-    return groups;
-  }, []);
+  // Temporarily disable date separators to fix spacing issue
+  return messages.map((message, index) => ({
+    type: 'message',
+    ...message,
+    uniqueId: message.messageId || `msg-${index}-${Date.now()}`
+  }));
 };

@@ -1,11 +1,40 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useMemo, memo } from 'react';
 import { FaSmile, FaImage, FaPaperclip, FaMicrophone, FaPaperPlane } from 'react-icons/fa';
 import { useChat } from '../../context/ChatContext';
 import Avatar from '../shared/Avatar';
 import DateSeparator from '../shared/DateSeparator';
 import ImageModal from '../shared/ImageModal';
 import { formatMessageTime, groupMessagesByDate } from '../../utils/messageUtils';
+import { formatLastSeen } from '../../utils/timeUtils';
+import webSocketService from '../../services/webSocketService';
 import '../../assets/css/WindowChat.css';
+
+// Component tối ưu cho user status để tránh re-render không cần thiết
+const UserStatus = memo(({ conversation }) => (
+  <div className="chat-window-status" style={{ display: 'flex', alignItems: 'center' }}>
+    {conversation.type === 'group' || conversation.isGroup ? (
+      `${conversation.memberCount || 3} thành viên`
+    ) : (
+      // Private chat - hiển thị status với chấm xanh
+      conversation.isOnline ? (
+        <>
+          <div style={{
+            width: '8px',
+            height: '8px',
+            backgroundColor: '#10b981',
+            borderRadius: '50%',
+            marginRight: '6px'
+          }}></div>
+          Đang hoạt động
+        </>
+      ) : conversation.lastSeen ? (
+        formatLastSeen(conversation.lastSeen)
+      ) : (
+        'Offline'
+      )
+    )}
+  </div>
+));
 
 const WindowChat = ({ conversation, currentUser, onToggleInfoPanel, isInfoPanelOpen, onBack }) => {
   const [newMessage, setNewMessage] = useState('');
@@ -21,21 +50,20 @@ const WindowChat = ({ conversation, currentUser, onToggleInfoPanel, isInfoPanelO
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [hasNextPage, setHasNextPage] = useState(true);
   const [isInitialLoading, setIsInitialLoading] = useState(false);
-  const { messages, loadMessages, sendMessage, sendImageMessage } = useChat();
+  const { messages, loadMessages, addMessage, sendMessage, sendImageMessage, user } = useChat();
 
-  // Lấy tin nhắn cho conversation hiện tại với dependency
+  // Lấy tin nhắn cho conversation hiện tại - chỉ theo dõi ID và messages
   const currentMessages = useMemo(() => {
     const msgs = conversation ? messages[conversation.id] || [] : [];
-    console.log('WindowChat - Current messages count:', msgs.length);
     return msgs;
-  }, [conversation, messages]);
+  }, [conversation?.id, messages]); // Chỉ theo dõi conversation.id
 
   // Group messages by date để hiển thị date separators
   const groupedMessages = useMemo(() => {
     return groupMessagesByDate(currentMessages);
   }, [currentMessages]);
 
-  // Khi conversation thay đổi, load messages và scroll xuống cuối
+  // Khi conversation ID thay đổi (không phải status), load messages và scroll xuống cuối
   useEffect(() => {
     if (conversation && conversation.id) {
       setIsInitialLoading(true);
@@ -49,11 +77,30 @@ const WindowChat = ({ conversation, currentUser, onToggleInfoPanel, isInfoPanelO
       }).catch(() => {
         setIsInitialLoading(false);
       });
+
+      // Subscribe to WebSocket messages for this conversation
+      let subscription = null;
+      if (webSocketService && webSocketService.isConnected()) {
+        subscription = webSocketService.subscribeToMessages(conversation.id, (newMessage) => {
+          console.log(`📨 [${user?.username}] New message received for chatroom ${conversation.id}:`, newMessage);
+          console.log(`📨 [${user?.username}] Message sender: ${newMessage.senderName}, current user: ${user?.username}`);
+          addMessage(conversation.id, newMessage);
+        });
+      } else {
+        console.log(`⚠️ WebSocket not available for subscription to chatroom ${conversation.id}`);
+      }
+
+      // Cleanup subscription when conversation changes
+      return () => {
+        if (subscription) {
+          subscription.unsubscribe();
+        }
+      };
     } else {
       // Reset loading state khi không có conversation
       setIsInitialLoading(false);
     }
-  }, [conversation, loadMessages]);
+  }, [conversation?.id, loadMessages, addMessage, user?.username]); // Remove webSocketService dependency
 
   // Scroll về cuối khi vừa vào chatroom (page = 0), giữ vị trí khi lazy loading
   useEffect(() => {
@@ -83,7 +130,6 @@ const WindowChat = ({ conversation, currentUser, onToggleInfoPanel, isInfoPanelO
     if (selectedImage && conversation) {
       // Gửi ảnh
       try {
-        console.log('Sending image:', selectedImage);
         await sendImageMessage(conversation.id, selectedImage);
         handleRemoveImage();
         // Force re-render để cập nhật UI ngay lập tức
@@ -208,9 +254,7 @@ const WindowChat = ({ conversation, currentUser, onToggleInfoPanel, isInfoPanelO
         />
         <div className="chat-window-info">
           <h3 className="chat-window-name">{conversation.title || conversation.name}</h3>
-          <p className="chat-window-status">
-            {conversation.type === 'group' || conversation.isGroup ? `${conversation.memberCount || 3} thành viên` : 'Đang hoạt động'}
-          </p>
+          <UserStatus conversation={conversation} />
         </div>
         <div style={{ display: 'flex', gap: '8px' }}>
           <button style={{
@@ -343,11 +387,11 @@ const WindowChat = ({ conversation, currentUser, onToggleInfoPanel, isInfoPanelO
           </div>
         ) : (
           <>
-            {groupedMessages.map((item, index) => (
+            {groupedMessages.map((item) => (
               item.type === 'date-separator' ? (
-                <DateSeparator key={`date-${index}`} date={item.date} />
+                <DateSeparator key={item.uniqueId} date={item.date} />
               ) : (
-                <div key={item.messageId || item.id} className={`message ${item.isOwn ? 'own' : ''}`}>
+                <div key={item.uniqueId} className={`message ${item.isOwn ? 'own' : ''}`}>
                   {!item.isOwn && (
                     <div className="message-avatar">
                       <img 
@@ -531,4 +575,4 @@ const WindowChat = ({ conversation, currentUser, onToggleInfoPanel, isInfoPanelO
   );
 };
 
-export default WindowChat;
+export default memo(WindowChat);

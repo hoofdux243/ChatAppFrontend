@@ -1,4 +1,4 @@
-import axiosInstance, { setAuthToken, clearAuthToken } from '../utils/axiosConfig';
+import axiosInstance, { setAuthToken, clearAuthToken, getAuthToken } from '../utils/axiosConfig';
 
 // API configuration
 const API_BASE_URL = 'http://localhost:8080/chatapp/api';
@@ -8,7 +8,6 @@ const API_ENDPOINTS = {
   LOGIN: '/auth/login',
   USER_PROFILE: '/auth/profile',
   REFRESH_TOKEN: '/auth/refresh',
-  LOGOUT: '/auth/logout',
   CHAT_ROOMS: '/chatrooms',
   MESSAGES: '/chatrooms/:id/messages'
 };
@@ -27,6 +26,11 @@ class ApiService {
   // Clear token (logout)
   clearToken() {
     clearAuthToken();
+  }
+
+  // Get token from memory
+  getToken() {
+    return getAuthToken();
   }
 
   // Generic request method using axios instance
@@ -161,18 +165,7 @@ class ApiService {
     });
   }
 
-  // Logout
-  async logout() {
-    try {
-      await this.request(API_ENDPOINTS.LOGOUT, {
-        method: 'POST',
-      });
-    } catch (error) {
-      console.error('Logout API error:', error);
-    } finally {
-      this.clearToken();
-    }
-  }
+
 }
 
 // Create singleton instance

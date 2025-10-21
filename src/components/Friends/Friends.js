@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { IoPeopleOutline, IoPersonAddOutline, IoPeople } from 'react-icons/io5';
 import Avatar from '../shared/Avatar';
 import chatService from '../../services/chatService';
+import { formatLastSeen } from '../../utils/timeUtils';
 import './Friends.css';
 
 const Friends = () => {
@@ -10,34 +11,7 @@ const Friends = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(false);
 
-  // Helper function to format last seen time
-  const formatLastSeen = (timestamp) => {
-    if (!timestamp) return null;
-    
-    try {
-      const date = new Date(timestamp);
-      const now = new Date();
-      const diffInMs = now - date;
-      const diffInMinutes = Math.floor(diffInMs / (1000 * 60));
-      const diffInHours = Math.floor(diffInMs / (1000 * 60 * 60));
-      const diffInDays = Math.floor(diffInMs / (1000 * 60 * 60 * 24));
 
-      if (diffInMinutes < 1) {
-        return 'Vừa xong';
-      } else if (diffInMinutes < 60) {
-        return `${diffInMinutes} phút trước`;
-      } else if (diffInHours < 24) {
-        return `${diffInHours} giờ trước`;
-      } else if (diffInDays < 7) {
-        return `${diffInDays} ngày trước`;
-      } else {
-        return date.toLocaleDateString('vi-VN');
-      }
-    } catch (error) {
-      console.error('Error formatting last seen:', error);
-      return null;
-    }
-  };
   const [searchTerm, setSearchTerm] = useState('');
 
   useEffect(() => {

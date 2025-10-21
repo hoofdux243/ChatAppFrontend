@@ -1,6 +1,7 @@
-import { useReducer, createContext, useContext } from 'react';
+import { useReducer, createContext, useContext, useEffect } from 'react';
 import apiService from '../services/apiService';
 import chatService from '../services/chatService';
+import webSocketService from '../services/webSocketService';
 
 // Auth action types
 const AUTH_ACTIONS = {
@@ -100,6 +101,38 @@ export const AuthProvider = ({ children }) => {
             token: response.access_token 
           } 
         });
+
+        // 🔌 Auto connect WebSocket sau khi login thành công
+        try {
+          await webSocketService.connect(response.user.username);
+          console.log('✅ WebSocket connected after login!');
+          
+          // Set user online - backend sẽ broadcast tới friends
+          setTimeout(async () => {
+            console.log('🔄 Calling setUserOnline...');
+            const result = await webSocketService.setUserOnline();
+            console.log('📋 SetUserOnline result:', result);
+            
+            // MANUAL: Force update current user status in conversations
+            setTimeout(() => {
+              console.log('📡 Manually updating user status...');
+              // Trigger a manual status update since backend doesn't broadcast
+              const currentUser = response.user;
+              if (currentUser) {
+                // You'll need to add this method to ChatContext
+                window.dispatchEvent(new CustomEvent('forceUserStatusUpdate', {
+                  detail: {
+                    userId: currentUser.id,
+                    username: currentUser.username,
+                    isOnline: true
+                  }
+                }));
+              }
+            }, 500);
+          }, 1000);
+        } catch (wsError) {
+          console.error('❌ WebSocket connection failed:', wsError);
+        }
         
         return { success: true, data: response };
       } else {
@@ -129,19 +162,18 @@ export const AuthProvider = ({ children }) => {
 
   // Logout function - Đơn giản
   const logout = async () => {
-    try {
-      // Call logout API (optional)
-      await apiService.logout();
-    } catch (error) {
-      console.error('Logout API failed:', error);
-    } finally {
-      // Clear token từ API service và reset state
-      apiService.clearToken();
-      // Clear chat service cache
-      chatService.clearCache();
-      console.log('useAuth: Logging out, clearing all data...');
-      dispatch({ type: AUTH_ACTIONS.LOGOUT });
-    }
+    // 🔌 Send disconnect message và disconnect WebSocket khi logout
+    console.log('🔄 Sending disconnect message...');
+    await webSocketService.setUserOffline();
+    
+    // Clear token từ API service và reset state
+    apiService.clearToken();
+    // Clear chat service cache
+    chatService.clearCache();
+    // Disconnect WebSocket
+    webSocketService.disconnect();
+    console.log('useAuth: Logging out, clearing all data...');
+    dispatch({ type: AUTH_ACTIONS.LOGOUT });
   };
 
   // Update user info
@@ -153,6 +185,31 @@ export const AuthProvider = ({ children }) => {
   const clearError = () => {
     dispatch({ type: AUTH_ACTIONS.CLEAR_ERROR });
   };
+
+  // Handle page unload - set user offline when close browser/tab
+  useEffect(() => {
+    const handleBeforeUnload = async () => {
+      if (state.isAuthenticated) {
+        console.log('🔄 Page unloading, setting user offline...');
+        await webSocketService.setUserOffline();
+      }
+    };
+
+    const handleUnload = () => {
+      if (state.isAuthenticated) {
+        // Synchronous call for page unload
+        webSocketService.setUserOffline();
+      }
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    window.addEventListener('unload', handleUnload);
+    
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+      window.removeEventListener('unload', handleUnload);
+    };
+  }, [state.isAuthenticated]);
 
   // Context value
   const value = {

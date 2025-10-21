@@ -1,6 +1,7 @@
 import { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../hooks/useAuth';
 import chatService from '../services/chatService';
+import webSocketService from '../services/webSocketService';
 
 // 1. Tạo Context
 const ChatContext = createContext();
@@ -16,13 +17,17 @@ export const useChat = () => {
 
 // 3. Provider
 export const ChatProvider = ({ children }) => {
+  // Get user from Auth context
+  const { user, isAuthenticated, loading: authLoading } = useAuth();
+  
   const [conversations, setConversations] = useState([]);
   const [messages, setMessages] = useState({}); // idConversation => [msg1, msg2,...]
   const [selectedConversation, setSelectedConversation] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
-  
-  const { user, isAuthenticated, loading: authLoading } = useAuth();
+
+  // Remove local user state since we get it from useAuth
+  // const { user, isAuthenticated, loading: authLoading } = useAuth();
 
   // Lấy danh sách conversation
   const loadConversations = useCallback(async () => {
@@ -30,33 +35,27 @@ export const ChatProvider = ({ children }) => {
       setLoading(true);
       setError(null);
       const response = await chatService.getConversationWithIdAccount();
-      console.log('ChatContext - API response:', response);
       
       if (response && response.result) {
-        console.log('ChatContext - Raw conversations:', response.result);
-        
         // Transform data từ API response
         const transformedConversations = response.result.map(item => {
-          console.log('ChatContext - Processing item:', item);
-          console.log('ChatContext - item.memberId:', item.memberId);
-          console.log('ChatContext - item.roomType:', item.roomType);
           return {
             id: item.chatRoomId,
             title: item.chatRoomName || item.chatRoomAvatar || `Chat ${item.chatRoomId.substring(0, 8)}` || 'Cuộc trò chuyện',
             avatar: item.chatRoomAvatar || null,
-            lastMessage: item.lastMessage || null, // Giữ nguyên object thay vì chỉ lấy content
-            lastMessageSender: item.lastMessage ? item.lastMessage.senderName : null, // Thêm tên người gửi
+            lastMessage: item.lastMessage || null,
+            lastMessageSender: item.lastMessage ? item.lastMessage.senderName : null,
             timestamp: item.lastMessage ? chatService.formatMessageTime(item.lastMessage.sentAt) : '',
-            isGroup:item.roomType === 'PUBLIC', 
+            isGroup: item.roomType === 'PUBLIC', 
+            roomType: item.roomType,
             memberCount: item.memberCount,
             unreadCount: item.readCount || 0,
-            memberId: item.memberId || null, // Thêm memberId cho private chat
-            lastRead: item.lastMessage ? item.lastMessage.lastRead : true, // Thêm trường lastRead
-            participants: [] // Có thể thêm thông tin participants nếu cần
+            member: item.member || null, // Contains member info for private chats
+            lastRead: item.lastMessage ? item.lastMessage.lastRead : true,
+            participants: [],
           };
         });
         
-        console.log('ChatContext - Transformed conversations:', transformedConversations);
         setConversations(transformedConversations);
       }
     } catch (error) {
@@ -65,7 +64,6 @@ export const ChatProvider = ({ children }) => {
       // Kiểm tra lỗi 401 (token expired)
       if (error.response?.status === 401) {
         setError('Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.');
-        // Không set mock data khi lỗi 401
         setConversations([]);
       } else {
         setError('Không thể tải danh sách cuộc trò chuyện');
@@ -96,271 +94,217 @@ export const ChatProvider = ({ children }) => {
     }
   }, []);
 
-  // Lấy tin nhắn cho một conversation
-  // Load messages với phân trang, nối tin nhắn cũ vào đầu mảng
-  const loadMessages = useCallback(async (conversationId, page = 0, size = 10) => {
+  // Lấy messages cho một conversation
+  const loadMessages = useCallback(async (conversationId, page = 0, size = 20) => {
     try {
-      setLoading(true);
-      console.log('ChatContext - Loading messages for conversation:', conversationId, 'page:', page);
       const response = await chatService.getMessagesByIdConversation(conversationId, page, size);
-      console.log('ChatContext - Messages API response:', response);
-      if (response && response.result && response.result.data) {
-        const currentUserId = await chatService.getCurrentUserId(user);
-        const currentUsername = chatService.getCurrentUserName(user);
-        const transformedMessages = response.result.data.map(msg => {
-          const isOwn = msg.senderUsername === currentUsername || msg.senderId === currentUserId;
-          return {
-          id: msg.messageId,
-          text: msg.content,
-          senderId: msg.senderId,
-          senderName: msg.senderName,
-          senderUsername: msg.senderUsername,
-          senderAvatar: msg.senderAvatar,
-          timestamp: new Date(msg.sentAt),
-          messageType: msg.messageType,
-          messageStatus: msg.messageStatus,
-          readCount: msg.readCount,
-          lastRead: msg.lastRead,
-          isOwn: isOwn
-        }});
-        // Reverse messages để tin nhắn cũ nhất ở trên, mới nhất ở dưới
-        const sortedMessages = transformedMessages.reverse();
-        
+      const messages = response?.result?.data || [];
+      
+      // Pagination ở cùng level với data, không phải nested
+      const pagination = {
+        hasNext: response?.result?.hasNext || false,
+        hasPrevious: response?.result?.hasPrevious || false,
+        page: response?.result?.page || 0,
+        totalPages: response?.result?.totalPages || 0,
+        totalElements: response?.result?.totalElements || 0
+      };
+      
+      // Transform messages: compare senderUsername with current user's username
+      const transformedMessages = messages.map(msg => ({
+        ...msg,
+        // Ensure senderUsername is available for both HTTP and WebSocket messages
+        senderUsername: msg.senderUsername || msg.senderName,
+        isOwn: (msg.senderUsername || msg.senderName) === user?.username
+      }));
+      
+      if (page === 0) {
+        // Initial load - replace all messages (newest first)
         setMessages(prev => ({
           ...prev,
-          [conversationId]: page === 0
-            ? sortedMessages  // Page 0: tin nhắn mới nhất (đảo ngược để cũ nhất ở trên)
-            : [...sortedMessages, ...(prev[conversationId] || [])]  // Page > 0: tin nhắn cũ hơn thêm vào đầu
+          [conversationId]: transformedMessages
         }));
-        return {
-          messages: sortedMessages,
-          pagination: {
-            page: response.result.page,
-            totalPages: response.result.totalPages,
-            totalElements: response.result.totalElements,
-            hasNext: response.result.hasNext,
-            hasPrevious: response.result.hasPrevious
-          }
-        };
+      } else {
+        // Load older messages - prepend to existing (older messages go to the beginning)
+        setMessages(prev => ({
+          ...prev,
+          [conversationId]: [...transformedMessages, ...(prev[conversationId] || [])]
+        }));
       }
+      
+      return {
+        data: transformedMessages,
+        pagination: pagination
+      };
     } catch (error) {
       console.error('Error loading messages:', error);
-    } finally {
-      setLoading(false);
+      return { data: [], pagination: { hasNext: false } };
     }
-  }, [user]);
+  }, [user?.username]);
 
-  // Gửi tin nhắn
-  const sendMessage = useCallback(async (conversationId, messageContent) => {
-    try {
-      const messageData = {
-        content: messageContent,
-        messageType: 'TEXT'
-      };
-      console.log('ChatContext - Sending message:', messageData);
-      const response = await chatService.sendMessage(conversationId, messageData);
-      console.log('ChatContext - Send message response:', response);
-      if (response) {
-        // Thêm tin nhắn vào state local
-        const newMessage = {
-          id: response.result?.messageId || Date.now(),
-          text: response.result?.content || messageContent,
-          senderId: response.result?.senderId || chatService.getCurrentUserId(user),
-          senderName: response.result?.senderName || chatService.getCurrentUserName(user),
-          senderUsername: response.result?.senderUsername || chatService.getCurrentUserName(user),
-          timestamp: response.result?.sentAt ? new Date(response.result.sentAt) : new Date(),
-          messageType: response.result?.messageType || 'TEXT',
-          messageStatus: 'SENT',
-          readCount: 0,
-          lastRead: true,
-          isOwn: true
-        };
-        
-        setMessages(prev => ({
-          ...prev,
-          [conversationId]: [...(prev[conversationId] || []), newMessage]
-        }));
-        
-        // Cập nhật lastMessage trong conversations với format phù hợp
-        const lastMessageObject = {
-          content: messageContent,
-          senderName: 'Bạn',
-          messageType: 'TEXT'
-        };
-        
-        setConversations(prev => 
-          prev.map(conv => 
-            conv.id === conversationId 
-              ? { ...conv, lastMessage: lastMessageObject, timestamp: 'Vừa xong' }
-              : conv
-          )
-        );
-        
-        return response;
-      }
-    } catch (error) {
-      console.error('Error sending message:', error);
-      throw error;
+  // Thêm message mới vào conversation
+  const addMessage = useCallback((conversationId, message) => {
+    // Debug: Check if message content is empty
+    console.log('🔍 Adding message:', message);
+    if (!message.content || message.content.trim() === '') {
+      console.warn('⚠️ Skipping empty message:', message);
+      return; // Skip empty messages
     }
-  }, [user]);
-
-  // Gửi tin nhắn ảnh
-  const sendImageMessage = useCallback(async (conversationId, imageFile) => {
-    try {
-      console.log('ChatContext - Sending image message:', imageFile);
-      const response = await chatService.sendImageMessage(conversationId, imageFile);
-      console.log('ChatContext - Send image message response:', response);
-      
-      if (response) {
-        // Thêm tin nhắn ảnh vào state local
-        const newMessage = {
-          id: response.result?.messageId || Date.now(),
-          content: response.result?.content || 'Image',
-          senderId: response.result?.senderId || chatService.getCurrentUserId(user),
-          senderName: response.result?.senderName || chatService.getCurrentUserName(user),
-          senderUsername: response.result?.senderUsername || chatService.getCurrentUserName(user),
-          timestamp: response.result?.sentAt ? new Date(response.result.sentAt) : new Date(),
-          messageType: 'IMAGE',
-          messageStatus: 'SENT',
-          readCount: 0,
-          lastRead: true,
-          isOwn: true
-        };
-        
-        setMessages(prev => ({
-          ...prev,
-          [conversationId]: [...(prev[conversationId] || []), newMessage]
-        }));
-        
-        // Cập nhật lastMessage trong conversations với format phù hợp
-        const lastMessageObject = {
-          content: response.result?.content || 'Image',
-          senderName: 'Bạn',
-          messageType: 'IMAGE'
-        };
-        
-        setConversations(prev => 
-          prev.map(conv => 
-            conv.id === conversationId 
-              ? { ...conv, lastMessage: lastMessageObject, timestamp: 'Vừa xong' }
-              : conv
-          )
-        );
-        
-        return response;
-      }
-    } catch (error) {
-      console.error('Error sending image message:', error);
-      throw error;
-    }
-  }, [user]);
-
-  // Load conversations khi component mount
-  useEffect(() => {
-    console.log('ChatContext useEffect - isAuthenticated:', isAuthenticated, 'authLoading:', authLoading, 'conversations.length:', conversations.length);
     
-    // Chỉ load khi user đã authenticated và auth không còn loading
-    if (isAuthenticated && !authLoading && conversations.length === 0) {
-      console.log('ChatContext - Loading conversations...');
-      // Delay slightly để đảm bảo token đã được set vào axios
-      const timer = setTimeout(() => {
-        loadConversations();
-      }, 100);
+    // Simple fix: always use senderId to determine isOwn
+    const transformedMessage = {
+      ...message,
+      isOwn: message.senderId === user?.id // Compare user ID instead of username
+    };
+    
+    setMessages(prev => {
+      const existingMessages = prev[conversationId] || [];
+      
+      // Check for duplicates by messageId
+      const isDuplicate = existingMessages.some(msg => 
+        msg.messageId === transformedMessage.messageId
+      );
+      
+      if (isDuplicate) {
+        console.warn('⚠️ Skipping duplicate message:', transformedMessage.messageId);
+        return prev;
+      }
+      
+      return {
+        ...prev,
+        [conversationId]: [...existingMessages, transformedMessage]
+      };
+    });
+    
+    // Update last message in conversations list
+    setConversations(prev => prev.map(conv => 
+      conv.id === conversationId 
+        ? { 
+            ...conv, 
+            lastMessage: transformedMessage,
+            timestamp: chatService.formatMessageTime(transformedMessage.sentAt || transformedMessage.timestamp)
+          }
+        : conv
+    ));
+  }, [user?.username]);
 
-      return () => clearTimeout(timer);
-    }
-  }, [isAuthenticated, authLoading, loadConversations]); // Add auth dependencies
-
-  // Clear data when user logs out
-  useEffect(() => {
-    if (!isAuthenticated && !authLoading) {
-      console.log('ChatContext - User logged out, clearing chat data...');
-      setConversations([]);
-      setMessages({});
-      setSelectedConversation(null);
-      setError(null);
-    }
-  }, [isAuthenticated, authLoading]);
-
-  // Clear chat data khi logout
+  // Clear data when logout
   const clearChatData = useCallback(() => {
     setConversations([]);
     setMessages({});
     setSelectedConversation(null);
     setError(null);
-    console.log('ChatContext: Chat data cleared');
   }, []);
 
-  // Force reload conversations
-  const reloadConversations = useCallback(() => {
-    console.log('ChatContext: Force reloading conversations...');
-    setConversations([]);
-    loadConversations();
-  }, [loadConversations]);
+  // Update user status in conversations
+  const updateUserStatus = useCallback((userStatus) => {
+    setConversations(prev => {
+      return prev.map(conv => {
+        if (conv.roomType === 'PRIVATE' && conv.member?.id === userStatus.id) {
+          return {
+            ...conv,
+            member: {
+              ...conv.member,
+              isOnline: userStatus.isOnline || userStatus.online,
+              lastSeen: userStatus.lastSeen
+            }
+          };
+        }
+        return conv;
+      });
+    });
+  }, []);
 
-  // Clear data khi user thay đổi hoặc logout
+  // Send message via HTTP API only (disable WebSocket for now)  
+  const sendMessage = useCallback(async (conversationId, content) => {
+    const messageData = {
+      content: content,
+      messageType: 'TEXT'
+    };
+    
+    try {
+      const result = await chatService.sendMessage(conversationId, messageData);
+      
+      // Add message locally for immediate UI update
+      if (result && result.message) {
+        addMessage(conversationId, result.message);
+      }
+      
+      return result;
+    } catch (error) {
+      console.error('Error sending message:', error);
+      throw error;
+    }
+  }, [addMessage]);
+
+  // Send image message via HTTP API only
+  const sendImageMessage = useCallback(async (conversationId, imageFile) => {
+    const messageData = {
+      content: '', // Content will be set by backend after upload
+      messageType: 'IMAGE', 
+      image: imageFile
+    };
+    
+    try {
+      const result = await chatService.sendMessage(conversationId, messageData);
+      
+      // Add message locally for immediate UI update
+      if (result && result.message) {
+        addMessage(conversationId, result.message);
+      }
+      
+      return result;
+    } catch (error) {
+      console.error('Error sending image:', error);
+      throw error;
+    }
+  }, [addMessage]);
+
+  // Clear data when user logs out
   useEffect(() => {
-    if (!isAuthenticated) {
+    if (!isAuthenticated && !authLoading) {
       clearChatData();
     }
-  }, [isAuthenticated, clearChatData]);
+  }, [isAuthenticated, authLoading, clearChatData]);
+
+  // Auto load conversations when authenticated
+  useEffect(() => {
+    if (isAuthenticated && !authLoading) {
+      loadConversations();
+    }
+  }, [isAuthenticated, authLoading, loadConversations]);
+
+  // Setup WebSocket when authenticated
+  useEffect(() => {
+    if (isAuthenticated && !authLoading && webSocketService) {
+      // Setup status subscription only
+      webSocketService.setOnUserStatusUpdate(updateUserStatus);
+    }
+    
+    return () => {
+      if (webSocketService && webSocketService.isConnected()) {
+        webSocketService.setOnUserStatusUpdate(null);
+      }
+    };
+  }, [isAuthenticated, updateUserStatus, webSocketService]);
 
   const value = {
+    // State
     conversations,
     messages,
     selectedConversation,
     loading,
     error,
-    setSelectedConversation,
+    user, // Add user from useAuth
+    
+    // Actions
     loadConversations,
     loadMessages,
+    addMessage,
     sendMessage,
     sendImageMessage,
-    clearChatData, // Thêm function clear data
-    
-    // Thêm method để load more messages
-    loadMoreMessages: useCallback(async (conversationId, page) => {
-      try {
-        const response = await chatService.getMessagesByIdConversation(conversationId, page, 20);
-        
-        if (response && response.result && response.result.data) {
-          const transformedMessages = response.result.data.map(msg => ({
-            id: msg.messageId,
-            text: msg.content,
-            senderId: msg.senderId,
-            senderName: msg.senderName,
-            senderUsername: msg.senderUsername,
-            timestamp: new Date(msg.sentAt),
-            messageType: msg.messageType,
-            messageStatus: msg.messageStatus,
-            readCount: msg.readCount,
-            lastRead: msg.lastRead,
-            isOwn: user && (msg.senderUsername === user.username || msg.senderId === user.id)
-          }));
-          
-          // Reverse và thêm vào đầu (tin nhắn cũ hơn)
-          const reversedMessages = transformedMessages.reverse();
-          setMessages(prev => ({
-            ...prev,
-            [conversationId]: [...reversedMessages, ...(prev[conversationId] || [])]
-          }));
-          
-          return {
-            messages: reversedMessages,
-            pagination: {
-              page: response.result.page,
-              totalPages: response.result.totalPages,
-              totalElements: response.result.totalElements,
-              hasNext: response.result.hasNext,
-              hasPrevious: response.result.hasPrevious
-            }
-          };
-        }
-      } catch (error) {
-        console.error('Error loading more messages:', error);
-        throw error;
-      }
-    }, [user])
+    setSelectedConversation,
+    clearChatData,
+    updateUserStatus
   };
 
   return (
@@ -369,3 +313,5 @@ export const ChatProvider = ({ children }) => {
     </ChatContext.Provider>
   );
 };
+
+export default ChatContext;

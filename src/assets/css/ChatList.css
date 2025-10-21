@@ -1,13 +1,14 @@
 /* ChatList Component Styles */
 .chat-list-container {
+  flex: 1;
   display: flex;
   flex-direction: column;
-  width: 360px;
-  min-width: 360px;
-  height: 100vh;
   background-color: white;
-  border-right: 1px solid #e5e7eb;
-  flex-shrink: 0;
+  border-right: none;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  box-sizing: border-box;
 }
 
 .chat-list-header {
@@ -39,6 +40,7 @@
   border-radius: 20px;
   outline: none;
   font-size: 14px;
+  box-sizing: border-box; /* ✅ Include padding in width */
 }
 
 .search-input:focus {
@@ -48,6 +50,7 @@
 .chat-list-items {
   flex: 1;
   overflow-y: auto;
+  overflow-x: hidden; /* ✅ Prevent horizontal scroll */
 }
 
 .chat-item {
