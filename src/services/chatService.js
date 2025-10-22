@@ -304,6 +304,74 @@ const chatService = {
         }
     },
 
+    // Lấy chatroom ID giữa 2 users bằng username
+    getChatroomByUsernames: async (username1, username2) => {
+        try {
+            const url = `http://localhost:8080/chatapp/api/chatrooms/id?username1=${username1}&username2=${username2}`;
+            console.log('📡 API Call URL:', url);
+            console.log('📡 Parameters:', { username1, username2 });
+            
+            const token = getAuthToken();
+            console.log('🔍 Token check:', token ? 'Token exists' : 'No token found');
+            console.log('🔍 Token preview:', token ? token.substring(0, 50) + '...' : 'null');
+            
+            const config = {
+                headers: {
+                    'Content-Type': 'application/json',
+                    ...(token && { Authorization: `Bearer ${token}` })
+                }
+            };
+            
+            console.log('🔍 Request headers:', config.headers);
+            
+            const response = await axios.get(url, config);
+            console.log('✅ Chatroom API response:', response.data);
+            return response.data;
+        } catch (error) {
+            console.error('❌ Error getting chatroom by usernames:');
+            console.error('  - Status:', error.response?.status);
+            console.error('  - Status Text:', error.response?.statusText);
+            console.error('  - Response Data:', error.response?.data);
+            console.error('  - Full Error:', error);
+            throw error;
+        }
+    },
+
+    // Tạo chatroom mới
+    createChatroom: async (memberIds) => {
+        try {
+            const url = 'http://localhost:8080/chatapp/api/chatrooms/create-chatroom';
+            console.log('📡 Creating chatroom with memberIds:', memberIds);
+            
+            const token = getAuthToken();
+            console.log('🔍 Token check for create chatroom:', token ? 'Token exists' : 'No token found');
+            
+            const config = {
+                headers: {
+                    'Content-Type': 'application/json',
+                    ...(token && { Authorization: `Bearer ${token}` })
+                }
+            };
+            
+            const requestData = {
+                memberIds: memberIds
+            };
+            
+            console.log('🔍 Create chatroom request data:', requestData);
+            
+            const response = await axios.post(url, requestData, config);
+            console.log('✅ Create chatroom API response:', response.data);
+            return response.data;
+        } catch (error) {
+            console.error('❌ Error creating chatroom:');
+            console.error('  - Status:', error.response?.status);
+            console.error('  - Status Text:', error.response?.statusText);
+            console.error('  - Response Data:', error.response?.data);
+            console.error('  - Full Error:', error);
+            throw error;
+        }
+    },
+
     // Lấy danh sách chatrooms public
     getPublicChatrooms: async (keyword = '') => {
         try {

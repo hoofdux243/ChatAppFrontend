@@ -6,6 +6,7 @@ const API_BASE_URL = 'http://localhost:8080/chatapp/api';
 // API endpoints
 const API_ENDPOINTS = {
   LOGIN: '/auth/login',
+  REGISTER: '/auth/register',
   USER_PROFILE: '/auth/profile',
   REFRESH_TOKEN: '/auth/refresh',
   CHAT_ROOMS: '/chatrooms',
@@ -73,6 +74,30 @@ class ApiService {
   async tryRefreshToken() {
     // Không implement refresh token để đơn giản
     return false;
+  }
+
+  // Register method
+  async register(userData) {
+    try {
+      const response = await this.request(API_ENDPOINTS.REGISTER, {
+        method: 'POST',
+        body: JSON.stringify(userData),
+      });
+
+      // Debug: Log response để xem format
+      console.log('Register response:', response);
+
+      // Backend trả về { message, status, result }
+      return {
+        message: response.message || 'Registration successful',
+        status: response.status || 200,
+        result: response.result
+      };
+
+    } catch (error) {
+      console.error('Register error:', error);
+      throw new Error(error.message || 'Đăng ký thất bại');
+    }
   }
 
   // Login method

@@ -14,7 +14,7 @@ const ChatList = ({ onSelectConversation, selectedConversation }) => {
   const [activeTab, setActiveTab] = useState('contacts'); // 'contacts' hoặc 'messages'
   const [chatSearchResults, setChatSearchResults] = useState([]);
   const [showCreateGroupModal, setShowCreateGroupModal] = useState(false);
-  const { conversations, loading, error, loadConversations } = useChat();
+  const { conversations, loading, error, loadConversations, user } = useChat();
 
   // Function để format message content dựa vào messageType
   const formatMessageContent = (lastMessage) => {
@@ -126,24 +126,115 @@ const ChatList = ({ onSelectConversation, selectedConversation }) => {
     onSelectConversation(conversation);
   };
 
-  const handleUserClick = (user) => {
-    // Create a temporary conversation object for the selected user
-    const userConversation = {
-      id: `user_${user.id}`,
-      title: user.name || user.username,
-      avatar: user.avatar,
-      lastMessage: 'Nhấn để bắt đầu trò chuyện',
-      timestamp: '',
-      isGroup: false,
-      memberCount: 2,
-      unreadCount: 0,
-      isUserChat: true,
-      userId: user.id
-    };
-    onSelectConversation(userConversation);
-    setSearchTerm('');
-    setShowSearchResults(false);
-    setActiveTab('contacts'); // Reset về tab mặc định
+  const handleUserClick = async (selectedUser) => {
+    try {
+      // Get usernames instead of IDs
+      const currentUsername = user?.username || user?.id;
+      const selectedUsername = selectedUser?.username;
+      
+      if (!currentUsername || !selectedUsername) {
+        console.error('❌ Missing usernames:', { currentUsername, selectedUsername });
+        return;
+      }
+      
+      // Call API to get chatroom between current user and selected user using usernames
+      let chatroomResponse = null;
+      let chatroomId = null;
+      
+      try {
+        chatroomResponse = await chatService.getChatroomByUsernames(currentUsername, selectedUsername);
+        
+        if (chatroomResponse && chatroomResponse.result && chatroomResponse.result.chatRoomId) {
+          chatroomId = chatroomResponse.result.chatRoomId;
+        }
+        
+      } catch (getChatroomError) {
+        // Any error means chatroom doesn't exist or can't be accessed
+        console.log('🔄 Creating new chatroom...');
+      }
+      
+      // If no chatroom ID found, create new one
+      if (!chatroomId) {
+        try {
+          // Create new chatroom with selected user's ID
+          const memberIds = [selectedUser.id];
+          
+          const createResponse = await chatService.createChatroom(memberIds);
+          
+          if (createResponse && createResponse.result && createResponse.result.chatRoomId) {
+            chatroomId = createResponse.result.chatRoomId;
+          }
+          
+        } catch (createError) {
+          console.error('❌ Error creating chatroom:', createError);
+          // Will use fallback behavior below
+        }
+      }
+      
+      // If we have a chatroom ID (either existing or newly created)
+      if (chatroomId) {
+        // Create conversation object with real chatroom ID
+        const conversation = {
+          id: chatroomId,
+          title: selectedUser.name || selectedUser.username,
+          avatar: selectedUser.avatar,
+          lastMessage: '',
+          timestamp: '',
+          isGroup: false,
+          memberCount: 2,
+          unreadCount: 0,
+          userId: selectedUser.id
+        };
+        
+        // Select conversation and load messages
+        onSelectConversation(conversation);
+        
+        // Clear search
+        setSearchTerm('');
+        setShowSearchResults(false);
+        setActiveTab('contacts');
+        
+      } else {
+        // Fallback to old behavior if no chatroom exists
+        const userConversation = {
+          id: `user_${selectedUser.id}`,
+          title: selectedUser.name || selectedUser.username,
+          avatar: selectedUser.avatar,
+          lastMessage: 'Nhấn để bắt đầu trò chuyện',
+          timestamp: '',
+          isGroup: false,
+          memberCount: 2,
+          unreadCount: 0,
+          isUserChat: true,
+          userId: selectedUser.id
+        };
+        onSelectConversation(userConversation);
+        setSearchTerm('');
+        setShowSearchResults(false);
+        setActiveTab('contacts');
+      }
+      
+    } catch (error) {
+      console.error('❌ Error handling user click:', error);
+      
+      // Fallback to old behavior on error
+      const userConversation = {
+        id: `user_${selectedUser.id}`,
+        title: selectedUser.name || selectedUser.username,
+        avatar: selectedUser.avatar,
+        lastMessage: 'Nhấn để bắt đầu trò chuyện',
+        timestamp: '',
+        isGroup: false,
+        memberCount: 2,
+        unreadCount: 0,
+        isUserChat: true,
+        userId: selectedUser.id
+      };
+      onSelectConversation(userConversation);
+      setSearchTerm('');
+      setShowSearchResults(false);
+      setActiveTab('contacts');
+    }
   };
 
   const handleSearchInputChange = (e) => {
@@ -527,18 +618,6 @@ const ChatList = ({ onSelectConversation, selectedConversation }) => {
         ) : (
           // Hiển thị tất cả conversations như bình thường
           conversations.map((conversation) => {
-            // Debug: Log thông tin conversation để kiểm tra user status
-            if (conversation.roomType === 'PRIVATE') {
-              console.log('🔍 Chat conversation:', {
-                id: conversation.id,
-                title: conversation.title,
-                memberId: conversation.memberId,
-                isOnline: conversation.isOnline,
-                lastSeen: conversation.lastSeen,
-                roomType: conversation.roomType
-              });
-            }
-            
             return (
               <div
                 key={conversation.id}

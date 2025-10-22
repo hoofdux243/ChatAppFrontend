@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
+import apiService from '../services/apiService';
 import '../assets/css/Register.css';
 
 function Register() {
@@ -9,7 +10,7 @@ function Register() {
     email: '',
     password: '',
     confirmPassword: '',
-    fullName: ''
+    name: '' // Đổi từ fullName thành name để khớp với API
   });
   const [errors, setErrors] = useState({});
   const [loading, setLoading] = useState(false);
@@ -58,10 +59,10 @@ function Register() {
     }
 
     // Full name validation
-    if (!formData.fullName.trim()) {
-      newErrors.fullName = 'Họ và tên không được để trống';
-    } else if (formData.fullName.trim().length < 2) {
-      newErrors.fullName = 'Họ và tên phải có ít nhất 2 ký tự';
+    if (!formData.name.trim()) {
+      newErrors.name = 'Họ và tên không được để trống';
+    } else if (formData.name.trim().length < 2) {
+      newErrors.name = 'Họ và tên phải có ít nhất 2 ký tự';
     }
 
     // Password validation
@@ -90,13 +91,23 @@ function Register() {
     }
 
     setLoading(true);
+    setErrors({}); // Clear previous errors
+    
     try {
-      // Here you would typically call your registration API
-      // For now, we'll just simulate the registration process
-      console.log('Registration data:', formData);
+      // Prepare data for API call (exclude confirmPassword)
+      const registerData = {
+        username: formData.username.trim(),
+        email: formData.email.trim(),
+        password: formData.password,
+        name: formData.name.trim()
+      };
+
+      console.log('Sending registration data:', registerData);
       
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      // Call register API
+      const response = await apiService.register(registerData);
+      
+      console.log('Registration successful:', response);
       
       // Show success message and redirect to login
       alert('Đăng ký thành công! Vui lòng đăng nhập.');
@@ -104,7 +115,22 @@ function Register() {
       
     } catch (error) {
       console.error('Registration error:', error);
-      setErrors({ submit: 'Đăng ký thất bại. Vui lòng thử lại.' });
+      
+      // Handle specific error messages from backend
+      let errorMessage = 'Đăng ký thất bại. Vui lòng thử lại.';
+      
+      if (error.message) {
+        // Check for common error cases
+        if (error.message.includes('username') && error.message.includes('already exists')) {
+          errorMessage = 'Tên đăng nhập đã tồn tại. Vui lòng chọn tên khác.';
+        } else if (error.message.includes('email') && error.message.includes('already exists')) {
+          errorMessage = 'Email đã được sử dụng. Vui lòng chọn email khác.';
+        } else {
+          errorMessage = error.message;
+        }
+      }
+      
+      setErrors({ submit: errorMessage });
     } finally {
       setLoading(false);
     }
@@ -128,15 +154,15 @@ function Register() {
             <div className="form-group">
               <input
                 type="text"
-                name="fullName"
+                name="name"
                 placeholder="Họ và tên"
-                value={formData.fullName}
+                value={formData.name}
                 onChange={handleChange}
-                className={`register-input ${errors.fullName ? 'error' : ''}`}
+                className={`register-input ${errors.name ? 'error' : ''}`}
                 disabled={loading}
               />
-              {errors.fullName && (
-                <div className="field-error">{errors.fullName}</div>
+              {errors.name && (
+                <div className="field-error">{errors.name}</div>
               )}
             </div>
 
