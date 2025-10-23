@@ -3,6 +3,7 @@ import { useChat } from '../../context/ChatContext';
 import chatService from '../../services/chatService';
 import Avatar from '../shared/Avatar';
 import CreateGroupModal from '../CreateGroupModal/CreateGroupModal';
+import UserProfileModal from '../Profile/UserProfileModal';
 import { formatLastSeen } from '../../utils/timeUtils';
 import '../../assets/css/ChatList.css';
 
@@ -14,6 +15,8 @@ const ChatList = ({ onSelectConversation, selectedConversation }) => {
   const [activeTab, setActiveTab] = useState('contacts'); // 'contacts' hoặc 'messages'
   const [chatSearchResults, setChatSearchResults] = useState([]);
   const [showCreateGroupModal, setShowCreateGroupModal] = useState(false);
+  const [showUserProfileModal, setShowUserProfileModal] = useState(false);
+  const [selectedUserForProfile, setSelectedUserForProfile] = useState(null);
   const { conversations, loading, error, loadConversations, user } = useChat();
 
   // Function để format message content dựa vào messageType
@@ -126,7 +129,12 @@ const ChatList = ({ onSelectConversation, selectedConversation }) => {
     onSelectConversation(conversation);
   };
 
-  const handleUserClick = async (selectedUser) => {
+  const handleShowUserProfile = (selectedUser) => {
+    setSelectedUserForProfile(selectedUser);
+    setShowUserProfileModal(true);
+  };
+
+  const handleStartChatFromProfile = async (selectedUser) => {
     try {
       // Get usernames instead of IDs
       const currentUsername = user?.username || user?.id;
@@ -189,10 +197,11 @@ const ChatList = ({ onSelectConversation, selectedConversation }) => {
         // Select conversation and load messages
         onSelectConversation(conversation);
         
-        // Clear search
+        // Clear search and close modal
         setSearchTerm('');
         setShowSearchResults(false);
         setActiveTab('contacts');
+        setShowUserProfileModal(false);
         
       } else {
         // Fallback to old behavior if no chatroom exists
@@ -212,6 +221,7 @@ const ChatList = ({ onSelectConversation, selectedConversation }) => {
         setSearchTerm('');
         setShowSearchResults(false);
         setActiveTab('contacts');
+        setShowUserProfileModal(false);
       }
       
     } catch (error) {
@@ -234,6 +244,7 @@ const ChatList = ({ onSelectConversation, selectedConversation }) => {
       setSearchTerm('');
       setShowSearchResults(false);
       setActiveTab('contacts');
+      setShowUserProfileModal(false);
     }
   };
 
@@ -459,7 +470,7 @@ const ChatList = ({ onSelectConversation, selectedConversation }) => {
                       <div
                         key={`friend_${user.id}`}
                         className="chat-item"
-                        onClick={() => handleUserClick(user)}
+                        onClick={() => handleShowUserProfile(user)}
                       >
                         <Avatar 
                           src={user.avatar} 
@@ -502,7 +513,7 @@ const ChatList = ({ onSelectConversation, selectedConversation }) => {
                       <div
                         key={`stranger_${user.id}`}
                         className="chat-item"
-                        onClick={() => handleUserClick(user)}
+                        onClick={() => handleShowUserProfile(user)}
                       >
                         <Avatar 
                           src={user.avatar} 
@@ -673,6 +684,70 @@ const ChatList = ({ onSelectConversation, selectedConversation }) => {
         isOpen={showCreateGroupModal}
         onClose={() => setShowCreateGroupModal(false)}
         onCreateGroup={handleCreateGroup}
+      />
+
+      {/* User Profile Modal */}
+      <UserProfileModal
+        isOpen={showUserProfileModal}
+        onClose={() => {
+          setShowUserProfileModal(false);
+          setSelectedUserForProfile(null);
+        }}
+        userId={selectedUserForProfile?.id}
+        userName={selectedUserForProfile?.name || selectedUserForProfile?.username}
+        onSendMessage={() => handleStartChatFromProfile(selectedUserForProfile)}
+        onAddFriend={async (action) => {
+          try {
+            switch (action) {
+              case 'ADD_FRIEND':
+                console.log('Sending friend request to:', selectedUserForProfile?.id);
+                await chatService.sendFriendRequest(selectedUserForProfile?.id);
+                alert('Gửi lời mời kết bạn thành công!');
+                // Refresh profile để cập nhật trạng thái
+                setShowUserProfileModal(false);
+                setTimeout(() => {
+                  setShowUserProfileModal(true);
+                }, 100);
+                break;
+              case 'ACCEPT_FRIEND':
+                console.log('Accepting friend request from:', selectedUserForProfile?.id);
+                await chatService.acceptFriendRequest(selectedUserForProfile?.id);
+                alert('Đã chấp nhận lời mời kết bạn!');
+                // Refresh profile để cập nhật trạng thái
+                setShowUserProfileModal(false);
+                setTimeout(() => {
+                  setShowUserProfileModal(true);
+                }, 100);
+                break;
+              case 'REMOVE_FRIEND':
+                console.log('Remove friend:', selectedUserForProfile?.id);
+                // TODO: Implement remove friend API
+                alert('Đã hủy kết bạn!');
+                break;
+              case 'REJECT_FRIEND':
+                console.log('Reject friend request:', selectedUserForProfile?.id);
+                // TODO: Implement reject friend request API
+                alert('Đã từ chối lời mời kết bạn!');
+                break;
+              case 'CANCEL_REQUEST':
+                console.log('Cancel friend request:', selectedUserForProfile?.id);
+                // TODO: Implement cancel friend request API
+                alert('Đã hủy lời mời kết bạn!');
+                break;
+              default:
+                console.log('Unknown action:', action);
+            }
+          } catch (error) {
+            console.error('Error with friend action:', error);
+            if (error.response?.status === 400) {
+              alert('Lỗi: ' + (error.response?.data?.message || 'Không thể thực hiện thao tác này'));
+            } else if (error.response?.status === 404) {
+              alert('Người dùng không tồn tại');
+            } else {
+              alert('Có lỗi xảy ra, vui lòng thử lại');
+            }
+          }
+        }}
       />
     </div>
   );

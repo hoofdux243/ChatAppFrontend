@@ -8,9 +8,13 @@ const FriendsMainContent = ({ activeTab, onSelectChat }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [contacts, setContacts] = useState([]);
   const [groups, setGroups] = useState([]);
+  const [friendRequests, setFriendRequests] = useState([]);
+  const [sentRequests, setSentRequests] = useState([]);
   const [loading, setLoading] = useState(false);
   const [contactsLoaded, setContactsLoaded] = useState(false);
   const [groupsLoaded, setGroupsLoaded] = useState(false);
+  const [friendRequestsLoaded, setFriendRequestsLoaded] = useState(false);
+  const [sentRequestsLoaded, setSentRequestsLoaded] = useState(false);
   
   const { isAuthenticated } = useAuth();
 
@@ -19,8 +23,12 @@ const FriendsMainContent = ({ activeTab, onSelectChat }) => {
     if (!isAuthenticated) {
       setContacts([]);
       setGroups([]);
+      setFriendRequests([]);
+      setSentRequests([]);
       setContactsLoaded(false);
       setGroupsLoaded(false);
+      setFriendRequestsLoaded(false);
+      setSentRequestsLoaded(false);
       setSearchTerm('');
       console.log('FriendsMainContent: Cache cleared on logout');
     }
@@ -31,11 +39,15 @@ const FriendsMainContent = ({ activeTab, onSelectChat }) => {
       loadContacts();
     } else if (activeTab === 'groups' && !groupsLoaded) {
       loadGroups();
+    } else if (activeTab === 'friend-requests' && !friendRequestsLoaded) {
+      loadFriendRequests();
+    } else if (activeTab === 'sent-requests' && !sentRequestsLoaded) {
+      loadSentRequests();
     }
     
     // Reset search term khi chuyển tab
     setSearchTerm('');
-  }, [activeTab, contactsLoaded, groupsLoaded]);
+  }, [activeTab, contactsLoaded, groupsLoaded, friendRequestsLoaded, sentRequestsLoaded]);
 
   // Debounce search - chỉ khi có searchTerm
   useEffect(() => {
@@ -46,6 +58,10 @@ const FriendsMainContent = ({ activeTab, onSelectChat }) => {
         loadContacts(searchTerm);
       } else if (activeTab === 'groups') {
         loadGroups(searchTerm);
+      } else if (activeTab === 'friend-requests') {
+        loadFriendRequests(searchTerm);
+      } else if (activeTab === 'sent-requests') {
+        loadSentRequests(searchTerm);
       }
     }, 500);
 
@@ -128,6 +144,107 @@ const FriendsMainContent = ({ activeTab, onSelectChat }) => {
       setGroupsLoaded(true);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadFriendRequests = async (keyword = '') => {
+    try {
+      setLoading(true);
+      const response = await chatService.getFriendRequesters();
+      
+      if (response && response.result) {
+        let requestsData = response.result;
+        
+        // Filter by keyword if provided
+        if (keyword) {
+          requestsData = requestsData.filter(request => 
+            (request.requesterUsername || '').toLowerCase().includes(keyword.toLowerCase()) ||
+            (request.requesterId || '').toLowerCase().includes(keyword.toLowerCase())
+          );
+        }
+        
+        setFriendRequests(requestsData);
+      } else {
+        setFriendRequests([]);
+      }
+      setFriendRequestsLoaded(true);
+    } catch (error) {
+      console.error('Error loading friend requests:', error);
+      setFriendRequests([]);
+      setFriendRequestsLoaded(true);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const loadSentRequests = async (keyword = '') => {
+    try {
+      setLoading(true);
+      const response = await chatService.getFriendRecipients();
+      
+      if (response && response.result) {
+        let requestsData = response.result;
+        
+        // Filter by keyword if provided
+        if (keyword) {
+          requestsData = requestsData.filter(request => 
+            (request.requesterUsername || '').toLowerCase().includes(keyword.toLowerCase()) ||
+            (request.recipientId || '').toLowerCase().includes(keyword.toLowerCase())
+          );
+        }
+        
+        setSentRequests(requestsData);
+      } else {
+        setSentRequests([]);
+      }
+      setSentRequestsLoaded(true);
+    } catch (error) {
+      console.error('Error loading sent requests:', error);
+      setSentRequests([]);
+      setSentRequestsLoaded(true);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleAcceptRequest = async (requesterId) => {
+    try {
+      await chatService.acceptFriendRequest(requesterId);
+      alert('Đã chấp nhận lời mời kết bạn!');
+      // Refresh the requests list
+      setFriendRequestsLoaded(false);
+      loadFriendRequests();
+    } catch (error) {
+      console.error('Error accepting friend request:', error);
+      alert('Có lỗi xảy ra khi chấp nhận lời mời');
+    }
+  };
+
+  const handleRejectRequest = async (requesterId) => {
+    try {
+      // TODO: Implement reject friend request API
+      console.log('Rejecting friend request from:', requesterId);
+      alert('Đã từ chối lời mời kết bạn!');
+      // Refresh the requests list
+      setFriendRequestsLoaded(false);
+      loadFriendRequests();
+    } catch (error) {
+      console.error('Error rejecting friend request:', error);
+      alert('Có lỗi xảy ra khi từ chối lời mời');
+    }
+  };
+
+  const handleCancelRequest = async (recipientId) => {
+    try {
+      // TODO: Implement cancel friend request API
+      console.log('Canceling friend request to:', recipientId);
+      alert('Đã hủy lời mời kết bạn!');
+      // Refresh the sent requests list
+      setSentRequestsLoaded(false);
+      loadSentRequests();
+    } catch (error) {
+      console.error('Error canceling friend request:', error);
+      alert('Có lỗi xảy ra khi hủy lời mời');
     }
   };
 
@@ -248,15 +365,117 @@ const FriendsMainContent = ({ activeTab, onSelectChat }) => {
   const renderRequestsContent = () => (
     <>
       <div className="friends-header">
-        <h2>Lời mời vào nhóm và cộng đồng</h2>
+        <h2>Lời mời kết bạn ({friendRequests.length})</h2>
+      </div>
+
+      <div className="search-section">
+        <input
+          type="text"
+          placeholder="Tìm lời mời"
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+          className="search-input"
+        />
       </div>
 
       <div className="content-section">
-        <div className="empty-state">
-          <div className="empty-icon">📩</div>
-          <h3>Không có lời mời nào</h3>
-          <p>Khi có người mời bạn vào nhóm hoặc cộng đồng, chúng sẽ hiển thị ở đây</p>
-        </div>
+        {loading ? (
+          <div className="loading-state">Đang tải...</div>
+        ) : friendRequests.length === 0 ? (
+          <div className="empty-state">
+            <div className="empty-icon">📩</div>
+            <h3>Không có lời mời kết bạn nào</h3>
+            <p>Khi có người gửi lời mời kết bạn, chúng sẽ hiển thị ở đây</p>
+          </div>
+        ) : (
+          <div className="friends-list">
+            {friendRequests.map(request => (
+              <div key={request.id} className="friend-item">
+                <Avatar 
+                  src={null} 
+                  alt={request.requesterUsername}
+                  size="medium"
+                />
+                <div className="friend-info">
+                  <div className="friend-name">{request.requesterUsername}</div>
+                  <div className="friend-status">
+                    Gửi lời mời {new Date(request.createdAt).toLocaleDateString('vi-VN')}
+                  </div>
+                </div>
+                <div className="friend-actions">
+                  <button 
+                    className="action-btn accept-btn"
+                    onClick={() => handleAcceptRequest(request.requesterId)}
+                  >
+                    Chấp nhận
+                  </button>
+                  <button 
+                    className="action-btn reject-btn"
+                    onClick={() => handleRejectRequest(request.requesterId)}
+                  >
+                    Từ chối
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </>
+  );
+
+  const renderSentRequestsContent = () => (
+    <>
+      <div className="friends-header">
+        <h2>Lời mời kết bạn đã gửi ({sentRequests.length})</h2>
+      </div>
+
+      <div className="search-section">
+        <input
+          type="text"
+          placeholder="Tìm lời mời đã gửi"
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+          className="search-input"
+        />
+      </div>
+
+      <div className="content-section">
+        {loading ? (
+          <div className="loading-state">Đang tải...</div>
+        ) : sentRequests.length === 0 ? (
+          <div className="empty-state">
+            <div className="empty-icon">📤</div>
+            <h3>Chưa gửi lời mời kết bạn nào</h3>
+            <p>Các lời mời kết bạn bạn đã gửi sẽ hiển thị ở đây</p>
+          </div>
+        ) : (
+          <div className="friends-list">
+            {sentRequests.map(request => (
+              <div key={request.id} className="friend-item">
+                <Avatar 
+                  src={null} 
+                  alt={request.requesterUsername}
+                  size="medium"
+                />
+                <div className="friend-info">
+                  <div className="friend-name">{request.requesterUsername}</div>
+                  <div className="friend-status">
+                    Đã gửi lời mời {new Date(request.createdAt).toLocaleDateString('vi-VN')}
+                  </div>
+                </div>
+                <div className="friend-actions">
+                  <button 
+                    className="action-btn cancel-btn"
+                    onClick={() => handleCancelRequest(request.recipientId)}
+                  >
+                    Hủy lời mời
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </>
   );
@@ -265,7 +484,8 @@ const FriendsMainContent = ({ activeTab, onSelectChat }) => {
     <div className="friends-main-content">
       {activeTab === 'friends' && renderFriendsContent()}
       {activeTab === 'groups' && renderGroupsContent()}
-      {activeTab === 'requests' && renderRequestsContent()}
+      {activeTab === 'friend-requests' && renderRequestsContent()}
+      {activeTab === 'sent-requests' && renderSentRequestsContent()}
     </div>
   );
 };

@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import chatService from '../../services/chatService';
 import './UserProfileModal.css';
 
-const UserProfileModal = ({ isOpen, onClose, userId, userName }) => {
+const UserProfileModal = ({ isOpen, onClose, userId, userName, onSendMessage, onAddFriend }) => {
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -57,16 +57,59 @@ const UserProfileModal = ({ isOpen, onClose, userId, userName }) => {
   };
 
   const handleAddFriend = () => {
-    // TODO: Implement add friend functionality
-    console.log('Add friend:', userId);
-    alert('Gửi lời mời kết bạn thành công!');
+    if (onAddFriend) {
+      onAddFriend('ADD_FRIEND');
+    } else {
+      console.log('Add friend:', userId);
+      alert('Gửi lời mời kết bạn thành công!');
+    }
+  };
+
+  const handleRemoveFriend = () => {
+    if (onAddFriend) {
+      onAddFriend('REMOVE_FRIEND');
+    } else {
+      console.log('Remove friend:', userId);
+      alert('Đã hủy kết bạn!');
+    }
+  };
+
+  const handleAcceptFriend = () => {
+    if (onAddFriend) {
+      onAddFriend('ACCEPT_FRIEND');
+    } else {
+      console.log('Accept friend request:', userId);
+      alert('Đã chấp nhận lời mời kết bạn!');
+    }
+  };
+
+  const handleRejectFriend = () => {
+    if (onAddFriend) {
+      onAddFriend('REJECT_FRIEND');
+    } else {
+      console.log('Reject friend request:', userId);
+      alert('Đã từ chối lời mời kết bạn!');
+    }
+  };
+
+  const handleCancelRequest = () => {
+    if (onAddFriend) {
+      onAddFriend('CANCEL_REQUEST');
+    } else {
+      console.log('Cancel friend request:', userId);
+      alert('Đã hủy lời mời kết bạn!');
+    }
   };
 
   const handleSendMessage = () => {
-    // TODO: Implement send message functionality
-    console.log('Send message to:', userId);
-    alert('Chuyển đến cuộc trò chuyện');
-    onClose();
+    if (onSendMessage) {
+      onSendMessage();
+    } else {
+      // Fallback behavior
+      console.log('Send message to:', userId);
+      alert('Chuyển đến cuộc trò chuyện');
+      onClose();
+    }
   };
 
   if (!isOpen) return null;
@@ -119,9 +162,35 @@ const UserProfileModal = ({ isOpen, onClose, userId, userName }) => {
               </div>
 
               <div className="action-buttons">
-                <button className="update-button" onClick={handleAddFriend}>
-                  Kết bạn
-                </button>
+                {/* Hiển thị nút dựa trên trạng thái quan hệ */}
+                {profile.isContact ? (
+                  // Đã kết bạn - hiển thị nút hủy kết bạn
+                  <button className="remove-friend-button" onClick={handleRemoveFriend}>
+                    Hủy kết bạn
+                  </button>
+                ) : profile.isRequester ? (
+                  // Người này gửi lời mời cho mình - hiển thị nút đồng ý và từ chối
+                  <>
+                    <button className="accept-button" onClick={handleAcceptFriend}>
+                      Đồng ý lời mời kết bạn
+                    </button>
+                    <button className="reject-button" onClick={handleRejectFriend}>
+                      Từ chối
+                    </button>
+                  </>
+                ) : profile.isRecipient ? (
+                  // Mình đã gửi lời mời cho người này - hiển thị nút hủy lời mời
+                  <button className="cancel-request-button" onClick={handleCancelRequest}>
+                    Hủy lời mời
+                  </button>
+                ) : (
+                  // Chưa có quan hệ gì - hiển thị nút thêm bạn bè
+                  <button className="update-button" onClick={handleAddFriend}>
+                    Thêm bạn bè
+                  </button>
+                )}
+                
+                {/* Nút nhắn tin luôn hiển thị */}
                 <button className="message-button" onClick={handleSendMessage}>
                   Nhắn tin
                 </button>

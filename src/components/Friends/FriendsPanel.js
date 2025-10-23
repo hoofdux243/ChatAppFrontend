@@ -2,7 +2,9 @@ import React from 'react';
 import { 
   IoPeopleOutline, 
   IoPeople,
-  IoPersonAddOutline
+  IoPersonAddOutline,
+  IoMailOutline,
+  IoSendOutline
 } from 'react-icons/io5';
 import './FriendsPanel.css';
 
@@ -34,11 +36,19 @@ const FriendsPanel = ({ activeTab, onTabChange }) => {
         </div>
         
         <div 
-          className={`friends-tab ${activeTab === 'requests' ? 'active' : ''}`}
-          onClick={() => onTabChange('requests')}
+          className={`friends-tab ${activeTab === 'friend-requests' ? 'active' : ''}`}
+          onClick={() => onTabChange('friend-requests')}
         >
-          <IoPersonAddOutline size={18} />
-          <span>Lời mời vào nhóm và cộng đồng</span>
+          <IoMailOutline size={18} />
+          <span>Lời mời kết bạn</span>
+        </div>
+
+        <div 
+          className={`friends-tab ${activeTab === 'sent-requests' ? 'active' : ''}`}
+          onClick={() => onTabChange('sent-requests')}
+        >
+          <IoSendOutline size={18} />
+          <span>Lời mời kết bạn đã gửi</span>
         </div>
       </div>
     </div>

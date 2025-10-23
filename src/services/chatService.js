@@ -390,6 +390,106 @@ const chatService = {
         } catch (error) {
             console.error('Error clearing cache:', error);
         }
+    },
+
+    // Gửi lời mời kết bạn
+    sendFriendRequest: async (recipientId) => {
+        try {
+            const url = `http://localhost:8080/chatapp/api/users/${recipientId}/request`;
+            console.log('📤 Sending friend request to:', recipientId);
+            
+            const token = getAuthToken();
+            const config = {
+                headers: {
+                    'Content-Type': 'application/json',
+                    ...(token && { Authorization: `Bearer ${token}` })
+                }
+            };
+            
+            const response = await axios.post(url, {}, config);
+            console.log('✅ Friend request sent successfully:', response.data);
+            return response.data;
+        } catch (error) {
+            console.error('❌ Error sending friend request:', error);
+            console.error('  - Status:', error.response?.status);
+            console.error('  - Response Data:', error.response?.data);
+            throw error;
+        }
+    },
+
+    // Chấp nhận lời mời kết bạn
+    acceptFriendRequest: async (requesterId) => {
+        try {
+            const url = `http://localhost:8080/chatapp/api/users/${requesterId}/accept-request`;
+            console.log('✅ Accepting friend request from:', requesterId);
+            
+            const token = getAuthToken();
+            const config = {
+                headers: {
+                    'Content-Type': 'application/json',
+                    ...(token && { Authorization: `Bearer ${token}` })
+                }
+            };
+            
+            const response = await axios.put(url, {}, config);
+            console.log('✅ Friend request accepted successfully:', response.data);
+            return response.data;
+        } catch (error) {
+            console.error('❌ Error accepting friend request:', error);
+            console.error('  - Status:', error.response?.status);
+            console.error('  - Response Data:', error.response?.data);
+            throw error;
+        }
+    },
+
+    // Lấy danh sách lời mời kết bạn nhận được
+    getFriendRequesters: async () => {
+        try {
+            const url = 'http://localhost:8080/chatapp/api/friend-request/requesters';
+            console.log('📡 Getting friend requesters...');
+            
+            const token = getAuthToken();
+            const config = {
+                headers: {
+                    'Content-Type': 'application/json',
+                    ...(token && { Authorization: `Bearer ${token}` })
+                }
+            };
+            
+            const response = await axios.get(url, config);
+            console.log('✅ Friend requesters retrieved successfully:', response.data);
+            return response.data;
+        } catch (error) {
+            console.error('❌ Error getting friend requesters:', error);
+            console.error('  - Status:', error.response?.status);
+            console.error('  - Response Data:', error.response?.data);
+            throw error;
+        }
+    },
+
+    // Lấy danh sách lời mời kết bạn đã gửi
+    getFriendRecipients: async () => {
+        try {
+            const url = 'http://localhost:8080/chatapp/api/friend-request/recipients';
+            console.log('📡 Getting friend recipients...');
+            
+            const token = getAuthToken();
+            const config = {
+                headers: {
+                    'Content-Type': 'application/json',
+                    ...(token && { Authorization: `Bearer ${token}` })
+                }
+            };
+            
+            const response = await axios.get(url, config);
+            console.log('✅ Friend recipients retrieved successfully:', response.data);
+            return response.data;
+        } catch (error) {
+            console.error('❌ Error getting friend recipients:', error);
+            console.error('  - Status:', error.response?.status);
+            console.error('  - Response Data:', error.response?.data);
+            throw error;
+        }
     }
 };
 

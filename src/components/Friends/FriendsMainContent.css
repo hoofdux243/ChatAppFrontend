@@ -112,6 +112,65 @@
   background-color: white;
   font-size: 13px;
   cursor: pointer;
+  transition: all 0.2s;
+}
+
+.action-btn:hover {
+  transform: translateY(-1px);
+}
+
+/* Nút chấp nhận */
+.accept-btn {
+  background-color: #10b981;
+  color: white;
+  border-color: #10b981;
+}
+
+.accept-btn:hover {
+  background-color: #059669;
+}
+
+/* Nút từ chối */
+.reject-btn {
+  background-color: #ef4444;
+  color: white;
+  border-color: #ef4444;
+}
+
+.reject-btn:hover {
+  background-color: #dc2626;
+}
+
+/* Nút hủy lời mời */
+.cancel-btn {
+  background-color: #f59e0b;
+  color: white;
+  border-color: #f59e0b;
+}
+
+.cancel-btn:hover {
+  background-color: #d97706;
+}
+
+/* Nút nhắn tin */
+.message-btn {
+  background-color: #3b82f6;
+  color: white;
+  border-color: #3b82f6;
+}
+
+.message-btn:hover {
+  background-color: #2563eb;
+}
+
+/* Nút more */
+.more-btn {
+  background-color: #f3f4f6;
+  color: #6b7280;
+}
+
+.more-btn:hover {
+  background-color: #e5e7eb;
 }
 
 .empty-state {
