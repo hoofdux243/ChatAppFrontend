@@ -7,6 +7,7 @@ import ImageModal from '../shared/ImageModal';
 import { formatMessageTime, groupMessagesByDate } from '../../utils/messageUtils';
 import { formatLastSeen } from '../../utils/timeUtils';
 import webSocketService from '../../services/webSocketService';
+import WebSocketHelper from '../../utils/webSocketHelper';
 import '../../assets/css/WindowChat.css';
 
 // Component tối ưu cho user status để tránh re-render không cần thiết
@@ -65,6 +66,14 @@ const WindowChat = ({ conversation, currentUser, onToggleInfoPanel, isInfoPanelO
 
   // Khi conversation ID thay đổi (không phải status), load messages và scroll xuống cuối
   useEffect(() => {
+    console.log(`🔄 [DEBUG] WindowChat useEffect triggered for conversation:`, {
+      conversationId: conversation?.id,
+      conversationName: conversation?.name,
+      userName: user?.username,
+      webSocketExists: !!webSocketService,
+      webSocketConnected: webSocketService?.isConnected()
+    });
+    
     if (conversation && conversation.id) {
       setIsInitialLoading(true);
       setPage(0);
@@ -80,14 +89,80 @@ const WindowChat = ({ conversation, currentUser, onToggleInfoPanel, isInfoPanelO
 
       // Subscribe to WebSocket messages for this conversation
       let subscription = null;
+      
+      console.log(`🔍 [DEBUG] WebSocket connection check for conversation ${conversation.id}:`, {
+        webSocketService: !!webSocketService,
+        isConnected: webSocketService?.isConnected(),
+        clientExists: !!webSocketService?.client,
+        clientConnected: webSocketService?.client?.connected,
+        conversationId: conversation.id,
+        currentUser: user?.username,
+        windowId: `window-${Date.now().toString().slice(-4)}` // Unique identifier per window
+      });
+      
+      // If WebSocket is disconnected, attempt auto-reconnection
+      if (webSocketService && !webSocketService.isConnected()) {
+        console.log(`🔄 [DEBUG] WebSocket disconnected, attempting auto-reconnection for user ${user?.username}`);
+        
+        // Try to reconnect
+        webSocketService.connect(user?.username).then(() => {
+          console.log(`✅ [DEBUG] Auto-reconnection successful for ${user?.username}`);
+          
+          // After successful reconnection, subscribe to messages
+          if (webSocketService.isConnected()) {
+            subscription = webSocketService.subscribeToMessages(conversation.id, (newMessage) => {
+              console.log(`📨 [${user?.username}] RECEIVED message in window for chatroom ${conversation.id}:`, {
+                messageId: newMessage.messageId,
+                content: newMessage.content.substring(0, 20),
+                sender: newMessage.senderUsername,
+                sentAt: newMessage.sentAt
+              });
+              addMessage(conversation.id, newMessage);
+            });
+          }
+        }).catch(error => {
+          console.error(`❌ [DEBUG] Auto-reconnection failed for ${user?.username}:`, error);
+        });
+      }
+      
+      // Expose debug methods to window for manual debugging
+      window.debugWebSocket = {
+        checkConnection: () => WebSocketHelper.checkConnection(),
+        forceReconnect: () => WebSocketHelper.forceReconnect(),
+        testConnection: () => WebSocketHelper.testConnection(),
+        manualReconnect: async () => {
+          console.log(`🔧 [MANUAL] Starting manual WebSocket reconnection for ${user?.username}`);
+          try {
+            await webSocketService.connect(user?.username);
+            console.log(`✅ [MANUAL] Manual reconnection successful`);
+            return true;
+          } catch (error) {
+            console.error(`❌ [MANUAL] Manual reconnection failed:`, error);
+            return false;
+          }
+        }
+      };
+      
+      // Expose WebSocket service for testing
+      window.webSocketService = webSocketService;
+      
       if (webSocketService && webSocketService.isConnected()) {
+        console.log(`✅ [DEBUG] WebSocket is connected, subscribing to chatroom ${conversation.id} for user ${user?.username}`);
         subscription = webSocketService.subscribeToMessages(conversation.id, (newMessage) => {
-          console.log(`📨 [${user?.username}] New message received for chatroom ${conversation.id}:`, newMessage);
+          console.log(`📨 [${user?.username}] RECEIVED message in window for chatroom ${conversation.id}:`, {
+            messageId: newMessage.messageId,
+            content: newMessage.content.substring(0, 20),
+            sender: newMessage.senderUsername,
+            sentAt: newMessage.sentAt
+          });
           console.log(`📨 [${user?.username}] Message sender: ${newMessage.senderName}, current user: ${user?.username}`);
           addMessage(conversation.id, newMessage);
         });
       } else {
-        console.log(`⚠️ WebSocket not available for subscription to chatroom ${conversation.id}`);
+        console.log(`⚠️ [DEBUG] WebSocket not available for subscription to chatroom ${conversation.id}`, {
+          hasService: !!webSocketService,
+          isConnected: webSocketService?.isConnected()
+        });
       }
 
       // Cleanup subscription when conversation changes
@@ -127,8 +202,15 @@ const WindowChat = ({ conversation, currentUser, onToggleInfoPanel, isInfoPanelO
   const handleSendMessage = async (e) => {
     e.preventDefault();
     
+    console.log(`🖱️ [DEBUG] handleSendMessage triggered:`, {
+      hasSelectedImage: !!selectedImage,
+      messageContent: newMessage,
+      conversationId: conversation?.id
+    });
+    
     if (selectedImage && conversation) {
       // Gửi ảnh
+      console.log(`🖼️ [DEBUG] Sending image message`);
       try {
         await sendImageMessage(conversation.id, selectedImage);
         handleRemoveImage();
@@ -143,8 +225,14 @@ const WindowChat = ({ conversation, currentUser, onToggleInfoPanel, isInfoPanelO
       }
     } else if (newMessage.trim() && conversation) {
       // Gửi text message
+      console.log(`💬 [DEBUG] Sending text message from user ${user?.username}:`, {
+        content: newMessage.trim(),
+        conversationId: conversation.id,
+        windowId: `window-${Date.now().toString().slice(-4)}`
+      });
       try {
         await sendMessage(conversation.id, newMessage.trim());
+        console.log(`✅ [DEBUG] Text message sent successfully`);
         setNewMessage('');
         // Force re-render để cập nhật UI ngay lập tức
         setTimeout(() => {

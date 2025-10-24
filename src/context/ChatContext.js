@@ -2,6 +2,7 @@ import { createContext, useContext, useState, useEffect, useCallback } from 'rea
 import { useAuth } from '../hooks/useAuth';
 import chatService from '../services/chatService';
 import webSocketService from '../services/webSocketService';
+import { chatLogger } from '../utils/debugLogger';
 
 // 1. Tạo Context
 const ChatContext = createContext();
@@ -59,7 +60,7 @@ export const ChatProvider = ({ children }) => {
         setConversations(transformedConversations);
       }
     } catch (error) {
-      console.error('Error loading conversations:', error);
+      chatLogger.error('Error loading conversations:', error);
       
       // Kiểm tra lỗi 401 (token expired)
       if (error.response?.status === 401) {
@@ -109,25 +110,33 @@ export const ChatProvider = ({ children }) => {
         totalElements: response?.result?.totalElements || 0
       };
       
-      // Transform messages: compare senderUsername with current user's username
-      const transformedMessages = messages.map(msg => ({
-        ...msg,
-        // Ensure senderUsername is available for both HTTP and WebSocket messages
-        senderUsername: msg.senderUsername || msg.senderName,
-        isOwn: (msg.senderUsername || msg.senderName) === user?.username
-      }));
+      // Transform messages: Test multiple comparison methods  
+      const transformedMessages = messages.map(msg => {
+        const isOwnByUsername = (msg.senderUsername || msg.senderName) === user?.username;
+        const isOwnByUserId = (msg.senderUsername || msg.senderName) === user?.id;
+        const isOwnBySenderId = msg.senderId === user?.id;
+        
+        return {
+          ...msg,
+          senderUsername: msg.senderUsername || msg.senderName,
+          isOwn: isOwnByUsername || isOwnByUserId || isOwnBySenderId
+        };
+      });
+      
+      // Backend sends NEWEST → OLDEST, but chat needs OLDEST → NEWEST (newest at bottom)
+      const reversedMessages = [...transformedMessages].reverse();
       
       if (page === 0) {
-        // Initial load - replace all messages (newest first)
+        // Initial load - use reversed array (oldest → newest)
         setMessages(prev => ({
           ...prev,
-          [conversationId]: transformedMessages
+          [conversationId]: reversedMessages
         }));
       } else {
-        // Load older messages - prepend to existing (older messages go to the beginning)
+        // Load older messages (pagination) - prepend reversed messages
         setMessages(prev => ({
           ...prev,
-          [conversationId]: [...transformedMessages, ...(prev[conversationId] || [])]
+          [conversationId]: [...reversedMessages, ...(prev[conversationId] || [])]
         }));
       }
       
@@ -136,24 +145,36 @@ export const ChatProvider = ({ children }) => {
         pagination: pagination
       };
     } catch (error) {
-      console.error('Error loading messages:', error);
+      chatLogger.error('Error loading messages:', error);
       return { data: [], pagination: { hasNext: false } };
     }
   }, [user?.username]);
 
   // Thêm message mới vào conversation
   const addMessage = useCallback((conversationId, message) => {
-    // Debug: Check if message content is empty
-    console.log('🔍 Adding message:', message);
-    if (!message.content || message.content.trim() === '') {
-      console.warn('⚠️ Skipping empty message:', message);
-      return; // Skip empty messages
+    // Validate message object
+    if (!message || typeof message !== 'object' || !message.content) {
+      chatLogger.message('⚠️ Skipping invalid message:', message);
+      return;
     }
     
-    // Simple fix: always use senderId to determine isOwn
+    // Skip empty messages
+    if (!message.content || message.content.trim() === '') {
+      chatLogger.message('⚠️ Skipping empty message:', message);
+      return;
+    }
+    
+    // Test both comparison methods
+    const isOwnByUsername = (message.senderUsername || message.senderName) === user?.username;
+    const isOwnByUserId = (message.senderUsername || message.senderName) === user?.id;
+    const isOwnBySenderId = message.senderId === user?.id;
+    
+    // Use whichever method works
+    const finalIsOwn = isOwnByUsername || isOwnByUserId || isOwnBySenderId;
+    
     const transformedMessage = {
       ...message,
-      isOwn: message.senderId === user?.id // Compare user ID instead of username
+      isOwn: finalIsOwn
     };
     
     setMessages(prev => {
@@ -165,13 +186,15 @@ export const ChatProvider = ({ children }) => {
       );
       
       if (isDuplicate) {
-        console.warn('⚠️ Skipping duplicate message:', transformedMessage.messageId);
+        chatLogger.message('⚠️ Skipping duplicate message:', transformedMessage.messageId);
         return prev;
       }
       
+      const newMessages = [...existingMessages, transformedMessage];
+      
       return {
         ...prev,
-        [conversationId]: [...existingMessages, transformedMessage]
+        [conversationId]: newMessages
       };
     });
     
@@ -224,19 +247,20 @@ export const ChatProvider = ({ children }) => {
     try {
       const result = await chatService.sendMessage(conversationId, messageData);
       
-      // Add message locally for immediate UI update
-      if (result && result.message) {
+      // For WebSocket messages, don't add locally - they will come back via subscription
+      // Only add locally for HTTP image messages that return actual message objects
+      if (result && result.message && typeof result.message === 'object' && result.message.messageId) {
         addMessage(conversationId, result.message);
       }
       
       return result;
     } catch (error) {
-      console.error('Error sending message:', error);
+      chatLogger.error('Error sending message:', error);
       throw error;
     }
   }, [addMessage]);
 
-  // Send image message via HTTP API only
+  // Send image message via HTTP API
   const sendImageMessage = useCallback(async (conversationId, imageFile) => {
     const messageData = {
       content: '', // Content will be set by backend after upload
@@ -254,7 +278,7 @@ export const ChatProvider = ({ children }) => {
       
       return result;
     } catch (error) {
-      console.error('Error sending image:', error);
+      chatLogger.error('Error sending image:', error);
       throw error;
     }
   }, [addMessage]);
@@ -275,17 +299,30 @@ export const ChatProvider = ({ children }) => {
 
   // Setup WebSocket when authenticated
   useEffect(() => {
-    if (isAuthenticated && !authLoading && webSocketService) {
-      // Setup status subscription only
-      webSocketService.setOnUserStatusUpdate(updateUserStatus);
+    if (isAuthenticated && !authLoading && webSocketService && user?.username) {
+      // Check token first
+      const apiService = require('../services/apiService').default;
+      const token = apiService.getToken();
+      chatLogger.websocket(`Attempting WebSocket connection with token: ${token ? token.substring(0, 20) + '...' : 'NONE'}`);
+      
+      // Connect to WebSocket first
+      webSocketService.connect(user.username).then(() => {
+        chatLogger.success('WebSocket connected successfully');
+        // Setup status subscription after connection
+        webSocketService.setOnUserStatusUpdate(updateUserStatus);
+      }).catch(error => {
+        chatLogger.error('Failed to connect WebSocket - continuing without real-time features:', error);
+        // Continue without WebSocket for now
+      });
     }
     
     return () => {
       if (webSocketService && webSocketService.isConnected()) {
         webSocketService.setOnUserStatusUpdate(null);
+        webSocketService.disconnect();
       }
     };
-  }, [isAuthenticated, updateUserStatus, webSocketService]);
+  }, [isAuthenticated, authLoading, user?.username, updateUserStatus, webSocketService]);
 
   const value = {
     // State

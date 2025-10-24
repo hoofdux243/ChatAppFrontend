@@ -2,6 +2,7 @@ import chatApi from "../api/chatApi";
 import axios from 'axios';
 import { getAuthToken } from '../utils/axiosConfig';
 import webSocketService from './webSocketService';
+import { apiLogger } from '../utils/debugLogger';
 
 const chatService = {
     // Lấy danh sách conversation theo user ID
@@ -10,7 +11,7 @@ const chatService = {
             const response = await chatApi.getConversationWithIdAccount();
             return response.data;
         } catch (error) {
-            console.error('Error fetching conversations:', error);
+            apiLogger.error('Error fetching conversations:', error);
             throw error;
         }
     },
@@ -37,25 +38,19 @@ const chatService = {
         }
     },
 
-    // Gửi tin nhắn qua WebSocket
+    // Gửi tin nhắn: Text qua WebSocket, Image qua HTTP
     sendMessage: async (chatroomId, messageData) => {
         try {
-            console.log('📤 Sending message via WebSocket:', { chatroomId, messageData });
-            
-            // Sử dụng WebSocket thay vì HTTP API
-            const response = await webSocketService.sendMessage(chatroomId, messageData);
-            console.log('✅ Message sent successfully via WebSocket:', response);
-            
-            return response;
-        } catch (error) {
-            console.error('❌ Error sending message via WebSocket:', error);
-            
-            // Fallback về HTTP API nếu WebSocket fail
-            console.log('🔄 Falling back to HTTP API...');
-            try {
+            // Nếu là image message, gửi qua HTTP API
+            if (messageData.messageType === 'IMAGE' && messageData.image) {
                 const formData = new FormData();
-                formData.append('content', messageData.content);
-                formData.append('messageType', messageData.messageType);
+                formData.append('content', '');
+                formData.append('messageType', 'IMAGE');
+                formData.append('image', messageData.image);
+                
+                if (messageData.replyToMessageId) {
+                    formData.append('replyToMessageId', messageData.replyToMessageId);
+                }
                 
                 const token = getAuthToken();
                 const config = {
@@ -69,40 +64,21 @@ const chatService = {
                     formData,
                     config
                 );
-                console.log('✅ Message sent via HTTP API fallback:', response.data);
                 return response.data;
-            } catch (httpError) {
-                console.error('❌ HTTP API fallback also failed:', httpError);
-                throw httpError;
             }
-        }
-    },
-
-    // Gửi tin nhắn ảnh
-    sendImageMessage: async (chatroomId, imageFile) => {
-        try {
-            const formData = new FormData();
-            formData.append('content', '');
-            formData.append('messageType', 'IMAGE');
-            formData.append('image', imageFile);
             
-            // Dùng axios thuần, KHÔNG qua interceptor
-            const token = getAuthToken();
-            const config = {
-                headers: {
-                    ...(token && { Authorization: `Bearer ${token}` })
-                    // KHÔNG set Content-Type
-                }
-            };
-            
-            const response = await axios.post(
-                `http://localhost:8080/chatapp/api/chatrooms/${chatroomId}/send-message`, 
-                formData, 
-                config
-            );
-            return response.data;
+            // Text messages - try WebSocket first, fallback to HTTP
+            try {
+                const response = await webSocketService.sendMessage(chatroomId, messageData);
+                return response;
+            } catch (wsError) {
+                apiLogger.error('WebSocket failed, falling back to HTTP API:', wsError);
+                // Fallback to HTTP API
+                const response = await chatApi.sendMessage(chatroomId, messageData);
+                return response.data;
+            }
         } catch (error) {
-            console.error('Error sending image message:', error);
+            apiLogger.error('❌ Error sending message:', error);
             throw error;
         }
     },
@@ -290,16 +266,19 @@ const chatService = {
             };
 
             const response = await axios.post(
-                'http://localhost:8080/chatapp/api/chatrooms/group',
+                'http://localhost:8080/chatapp/api/chatrooms/create-chatroom',
                 {
-                    name: groupData.name,
+                    groupName: groupData.name,
                     memberIds: groupData.memberIds
                 },
                 config
             );
+            
             return response.data;
         } catch (error) {
-            console.error('Error creating group:', error);
+            console.error('❌ Error creating group:', error);
+            console.error('  - Status:', error.response?.status);
+            console.error('  - Response Data:', error.response?.data);
             throw error;
         }
     },
@@ -308,13 +287,8 @@ const chatService = {
     getChatroomByUsernames: async (username1, username2) => {
         try {
             const url = `http://localhost:8080/chatapp/api/chatrooms/id?username1=${username1}&username2=${username2}`;
-            console.log('📡 API Call URL:', url);
-            console.log('📡 Parameters:', { username1, username2 });
             
             const token = getAuthToken();
-            console.log('🔍 Token check:', token ? 'Token exists' : 'No token found');
-            console.log('🔍 Token preview:', token ? token.substring(0, 50) + '...' : 'null');
-            
             const config = {
                 headers: {
                     'Content-Type': 'application/json',
@@ -322,10 +296,7 @@ const chatService = {
                 }
             };
             
-            console.log('🔍 Request headers:', config.headers);
-            
             const response = await axios.get(url, config);
-            console.log('✅ Chatroom API response:', response.data);
             return response.data;
         } catch (error) {
             console.error('❌ Error getting chatroom by usernames:');
@@ -341,11 +312,8 @@ const chatService = {
     createChatroom: async (memberIds) => {
         try {
             const url = 'http://localhost:8080/chatapp/api/chatrooms/create-chatroom';
-            console.log('📡 Creating chatroom with memberIds:', memberIds);
             
             const token = getAuthToken();
-            console.log('🔍 Token check for create chatroom:', token ? 'Token exists' : 'No token found');
-            
             const config = {
                 headers: {
                     'Content-Type': 'application/json',
@@ -357,10 +325,7 @@ const chatService = {
                 memberIds: memberIds
             };
             
-            console.log('🔍 Create chatroom request data:', requestData);
-            
             const response = await axios.post(url, requestData, config);
-            console.log('✅ Create chatroom API response:', response.data);
             return response.data;
         } catch (error) {
             console.error('❌ Error creating chatroom:');
@@ -386,7 +351,7 @@ const chatService = {
     // Clear cache - không cần localStorage
     clearCache: () => {
         try {
-            console.log('ChatService: Cache cleared (no localStorage)');
+            // Cache cleared (no localStorage)
         } catch (error) {
             console.error('Error clearing cache:', error);
         }
@@ -396,7 +361,6 @@ const chatService = {
     sendFriendRequest: async (recipientId) => {
         try {
             const url = `http://localhost:8080/chatapp/api/users/${recipientId}/request`;
-            console.log('📤 Sending friend request to:', recipientId);
             
             const token = getAuthToken();
             const config = {

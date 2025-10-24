@@ -24,8 +24,11 @@ class WebSocketService {
         this.disconnect();
       }
       
+      console.log(`🔌 [DEBUG] Creating SockJS connection to: http://localhost:8080/chatapp/ws (${Date.now()})`);
       const socket = new SockJS('http://localhost:8080/chatapp/ws');
       const token = apiService.getToken();
+      
+      console.log(`🔌 [DEBUG] Token for WebSocket auth:`, token ? `Present (${token.substring(0, 20)}...)` : 'Missing');
       
       this.client = new Client({
         webSocketFactory: () => socket,
@@ -69,13 +72,15 @@ class WebSocketService {
       };
 
       this.client.onStompError = (frame) => {
-        console.error('❌ STOMP Error:', frame);
+        console.error(`❌ [${this.sessionId}] STOMP Error:`, frame);
+        console.error(`❌ [DEBUG] Error headers:`, frame.headers);
+        console.error(`❌ [DEBUG] Error body:`, frame.body);
         this.connected = false;
         reject(frame);
       };
 
       this.client.onWebSocketError = (error) => {
-        console.error('❌ WebSocket Error:', error);
+        console.error(`❌ [${this.sessionId}] WebSocket Error:`, error);
         this.connected = false;
         reject(error);
       };
@@ -93,10 +98,11 @@ class WebSocketService {
       };
 
       this.client.onDisconnect = () => {
-        console.log('📴 WebSocket disconnected');
+        console.log(`📴 [${this.sessionId}] WebSocket disconnected`);
         this.connected = false;
       };
 
+      console.log(`🔌 [DEBUG] Activating STOMP client...`);
       this.client.activate();
     });
   }
@@ -157,38 +163,53 @@ class WebSocketService {
 
   // Gửi tin nhắn qua WebSocket
   sendMessage(chatRoomId, messageData) {
+    console.log(`🚀 [DEBUG] WebSocket sendMessage called:`, {
+      chatRoomId,
+      messageData,
+      sessionId: this.sessionId,
+      connected: this.connected,
+      clientExists: !!this.client
+    });
+    
     return new Promise((resolve, reject) => {
       if (!this.connected || !this.client) {
         console.error(`❌ [${this.sessionId}] WebSocket not connected`);
-        reject(new Error('WebSocket not connected'));
+        reject(new Error('WebSocket not connected - please check connection and try again'));
         return;
       }
 
       try {
-        console.log(`📤 [${this.sessionId}] Sending message to chatroom ${chatRoomId}:`, messageData);
-        
-        // Chuẩn bị dữ liệu tin nhắn theo format backend expect
+        // Chỉ gửi text messages qua WebSocket
         const sendMessageRequest = {
-          content: messageData.content,
+          content: messageData.content || '',
           messageType: messageData.messageType || 'TEXT'
         };
 
-        // Gửi tin nhắn tới WebSocket endpoint
+        // Nếu có replyToMessageId, thêm vào request  
+        if (messageData.replyToMessageId) {
+          sendMessageRequest.replyToMessageId = messageData.replyToMessageId;
+        }
+
+        console.log(`📤 [DEBUG] Sending message via WebSocket:`, {
+          destination: `/app/chatrooms/${chatRoomId}/send-message`,
+          payload: sendMessageRequest
+        });
+
+        // Gửi text message qua WebSocket
         this.client.publish({
           destination: `/app/chatrooms/${chatRoomId}/send-message`,
           body: JSON.stringify(sendMessageRequest)
         });
-
-        console.log(`✅ [${this.sessionId}] Message published successfully to chatroom ${chatRoomId}`);
         
-        // Return success immediately - actual response sẽ đến qua subscription
+        console.log(`✅ [DEBUG] Message published to WebSocket successfully`);
+        
         resolve({
           success: true,
           message: 'Message sent via WebSocket'
         });
 
       } catch (error) {
-        console.error(`❌ [${this.sessionId}] Error sending message:`, error);
+        console.error(`💥 [DEBUG] Error sending message via WebSocket:`, error);
         reject(error);
       }
     });
@@ -205,12 +226,19 @@ class WebSocketService {
     
     const subscription = this.client.subscribe(`/topic/chatrooms/${chatRoomId}/new-message`, (message) => {
       try {
-        console.log(`📨 [${this.sessionId}] RAW message received:`, message.body);
+        console.log(`📨 [DEBUG] RAW message received from WebSocket:`, {
+          topic: `/topic/chatrooms/${chatRoomId}/new-message`,
+          body: message.body
+        });
+        
         const messageData = JSON.parse(message.body);
-        console.log(`📨 [${this.sessionId}] PARSED message received:`, messageData);
+        console.log(`📨 [DEBUG] PARSED message received:`, messageData);
         
         if (onMessageReceived) {
+          console.log(`🔔 [DEBUG] Calling onMessageReceived callback with:`, messageData);
           onMessageReceived(messageData);
+        } else {
+          console.log(`⚠️ [DEBUG] No onMessageReceived callback provided`);
         }
       } catch (error) {
         console.error(`❌ [${this.sessionId}] Error parsing received message:`, error);
@@ -288,6 +316,33 @@ class WebSocketService {
         this.client = null;
       }
     }
+  }
+
+  // Attempt to reconnect WebSocket
+  async attemptReconnect() {
+    console.log(`🔄 [${this.sessionId}] Attempting WebSocket reconnection...`);
+    
+    try {
+      // Get current user info for reconnection
+      const userInfo = localStorage.getItem('userInfo');
+      if (!userInfo) {
+        throw new Error('No user info found for reconnection');
+      }
+      
+      const user = JSON.parse(userInfo);
+      await this.connect(user.username);
+      
+      console.log(`✅ [${this.sessionId}] WebSocket reconnection successful`);
+      return true;
+    } catch (error) {
+      console.error(`❌ [${this.sessionId}] WebSocket reconnection failed:`, error);
+      throw error;
+    }
+  }
+
+  // Check connection status
+  isConnected() {
+    return this.connected && this.client && this.client.connected;
   }
 }
 

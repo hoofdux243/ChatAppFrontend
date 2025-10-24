@@ -81,9 +81,9 @@ const FriendsMainContent = ({ activeTab, onSelectChat }) => {
       console.error('Error loading contacts:', error);
       // Fallback data với filter theo keyword
       const fallbackData = [
-        { contactId: '1', name: 'An Nguyen', username: 'an_nguyen', avatar: null, online: true },
-        { contactId: '2', name: 'Anh Pha', username: 'anh_pha', avatar: null, online: false },
-        { contactId: '3', name: 'Anh Thu', username: 'anh_thu', avatar: null, online: true }
+        { contactId: '1', userId: 'user1', name: 'An Nguyen', username: 'an_nguyen', avatar: null, online: true },
+        { contactId: '2', userId: 'user2', name: 'Anh Pha', username: 'anh_pha', avatar: null, online: false },
+        { contactId: '3', userId: 'user3', name: 'Anh Thu', username: 'anh_thu', avatar: null, online: true }
       ];
       
       if (keyword) {
@@ -158,7 +158,7 @@ const FriendsMainContent = ({ activeTab, onSelectChat }) => {
         // Filter by keyword if provided
         if (keyword) {
           requestsData = requestsData.filter(request => 
-            (request.requesterUsername || '').toLowerCase().includes(keyword.toLowerCase()) ||
+            (request.requesterName || '').toLowerCase().includes(keyword.toLowerCase()) ||
             (request.requesterId || '').toLowerCase().includes(keyword.toLowerCase())
           );
         }
@@ -188,7 +188,7 @@ const FriendsMainContent = ({ activeTab, onSelectChat }) => {
         // Filter by keyword if provided
         if (keyword) {
           requestsData = requestsData.filter(request => 
-            (request.requesterUsername || '').toLowerCase().includes(keyword.toLowerCase()) ||
+            (request.recipientName || '').toLowerCase().includes(keyword.toLowerCase()) ||
             (request.recipientId || '').toLowerCase().includes(keyword.toLowerCase())
           );
         }
@@ -278,7 +278,7 @@ const FriendsMainContent = ({ activeTab, onSelectChat }) => {
         ) : (
           <div className="friends-list">
             {contacts.map(contact => (
-              <div key={contact.contactId} className="friend-item">
+              <div key={contact.userId || contact.contactId} className="friend-item">
                 <Avatar 
                   src={contact.avatar} 
                   alt={contact.name || contact.username}
@@ -392,12 +392,12 @@ const FriendsMainContent = ({ activeTab, onSelectChat }) => {
             {friendRequests.map(request => (
               <div key={request.id} className="friend-item">
                 <Avatar 
-                  src={null} 
-                  alt={request.requesterUsername}
+                  src={request.requesterAvatar} 
+                  alt={request.requesterName}
                   size="medium"
                 />
                 <div className="friend-info">
-                  <div className="friend-name">{request.requesterUsername}</div>
+                  <div className="friend-name">{request.requesterName}</div>
                   <div className="friend-status">
                     Gửi lời mời {new Date(request.createdAt).toLocaleDateString('vi-VN')}
                   </div>
@@ -454,12 +454,12 @@ const FriendsMainContent = ({ activeTab, onSelectChat }) => {
             {sentRequests.map(request => (
               <div key={request.id} className="friend-item">
                 <Avatar 
-                  src={null} 
-                  alt={request.requesterUsername}
+                  src={request.recipientAvatar} 
+                  alt={request.recipientName}
                   size="medium"
                 />
                 <div className="friend-info">
-                  <div className="friend-name">{request.requesterUsername}</div>
+                  <div className="friend-name">{request.recipientName}</div>
                   <div className="friend-status">
                     Đã gửi lời mời {new Date(request.createdAt).toLocaleDateString('vi-VN')}
                   </div>

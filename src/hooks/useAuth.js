@@ -105,17 +105,13 @@ export const AuthProvider = ({ children }) => {
         // 🔌 Auto connect WebSocket sau khi login thành công
         try {
           await webSocketService.connect(response.user.username);
-          console.log('✅ WebSocket connected after login!');
           
           // Set user online - backend sẽ broadcast tới friends
           setTimeout(async () => {
-            console.log('🔄 Calling setUserOnline...');
             const result = await webSocketService.setUserOnline();
-            console.log('📋 SetUserOnline result:', result);
             
             // MANUAL: Force update current user status in conversations
             setTimeout(() => {
-              console.log('📡 Manually updating user status...');
               // Trigger a manual status update since backend doesn't broadcast
               const currentUser = response.user;
               if (currentUser) {
@@ -163,7 +159,6 @@ export const AuthProvider = ({ children }) => {
   // Logout function - Đơn giản
   const logout = async () => {
     // 🔌 Send disconnect message và disconnect WebSocket khi logout
-    console.log('🔄 Sending disconnect message...');
     await webSocketService.setUserOffline();
     
     // Clear token từ API service và reset state
@@ -172,7 +167,6 @@ export const AuthProvider = ({ children }) => {
     chatService.clearCache();
     // Disconnect WebSocket
     webSocketService.disconnect();
-    console.log('useAuth: Logging out, clearing all data...');
     dispatch({ type: AUTH_ACTIONS.LOGOUT });
   };
 
@@ -190,7 +184,6 @@ export const AuthProvider = ({ children }) => {
   useEffect(() => {
     const handleBeforeUnload = async () => {
       if (state.isAuthenticated) {
-        console.log('🔄 Page unloading, setting user offline...');
         await webSocketService.setUserOffline();
       }
     };

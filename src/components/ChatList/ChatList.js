@@ -37,30 +37,52 @@ const ChatList = ({ onSelectConversation, selectedConversation }) => {
   // Handle create group
   const handleCreateGroup = async (groupData) => {
     try {
-      // TODO: Implement create group API call
       const response = await chatService.createGroup(groupData);
       
       if (response && response.result) {
-        // Refresh conversations to show new group
+        // Refresh conversations to show new chat/group
         await loadConversations();
         
-        // Optionally select the new group
-        const newGroup = {
-          id: response.result.id,
-          title: groupData.name,
+        // Determine chat type and create conversation object
+        const isGroupChat = groupData.memberIds.length > 1;
+        const conversationTitle = isGroupChat 
+          ? (groupData.name || `Nhóm ${groupData.memberIds.length + 1} người`)
+          : 'Cuộc trò chuyện mới';
+        
+        // Create conversation object to select
+        const newConversation = {
+          id: response.result.chatRoomId || response.result.id,
+          chatRoomId: response.result.chatRoomId || response.result.id,
+          title: conversationTitle,
           avatar: null,
-          lastMessage: 'Nhóm đã được tạo',
+          lastMessage: isGroupChat ? 'Nhóm đã được tạo' : 'Cuộc trò chuyện đã được tạo',
           timestamp: 'Vừa xong',
-          isGroup: true,
+          isGroup: isGroupChat,
+          roomType: isGroupChat ? 'PUBLIC' : 'PRIVATE',
           memberCount: groupData.memberIds.length + 1, // +1 for current user
           unreadCount: 0
         };
         
-        onSelectConversation(newGroup);
+        onSelectConversation(newConversation);
+        
+        // Show success message
+        const successMessage = isGroupChat ? 'Tạo nhóm thành công!' : 'Tạo cuộc trò chuyện thành công!';
+        alert(successMessage);
+      } else {
+        throw new Error('Invalid response from server');
       }
     } catch (error) {
-      console.error('Error creating group:', error);
-      throw error;
+      console.error('❌ Error creating group:', error);
+      
+      // Better error handling and user feedback
+      let errorMessage = 'Không thể tạo cuộc trò chuyện';
+      if (error.response?.data?.message) {
+        errorMessage = error.response.data.message;
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+      
+      throw new Error(errorMessage);
     }
   };
 
@@ -158,7 +180,6 @@ const ChatList = ({ onSelectConversation, selectedConversation }) => {
         
       } catch (getChatroomError) {
         // Any error means chatroom doesn't exist or can't be accessed
-        console.log('🔄 Creating new chatroom...');
       }
       
       // If no chatroom ID found, create new one
@@ -700,7 +721,6 @@ const ChatList = ({ onSelectConversation, selectedConversation }) => {
           try {
             switch (action) {
               case 'ADD_FRIEND':
-                console.log('Sending friend request to:', selectedUserForProfile?.id);
                 await chatService.sendFriendRequest(selectedUserForProfile?.id);
                 alert('Gửi lời mời kết bạn thành công!');
                 // Refresh profile để cập nhật trạng thái
@@ -710,7 +730,6 @@ const ChatList = ({ onSelectConversation, selectedConversation }) => {
                 }, 100);
                 break;
               case 'ACCEPT_FRIEND':
-                console.log('Accepting friend request from:', selectedUserForProfile?.id);
                 await chatService.acceptFriendRequest(selectedUserForProfile?.id);
                 alert('Đã chấp nhận lời mời kết bạn!');
                 // Refresh profile để cập nhật trạng thái
@@ -720,22 +739,19 @@ const ChatList = ({ onSelectConversation, selectedConversation }) => {
                 }, 100);
                 break;
               case 'REMOVE_FRIEND':
-                console.log('Remove friend:', selectedUserForProfile?.id);
                 // TODO: Implement remove friend API
                 alert('Đã hủy kết bạn!');
                 break;
               case 'REJECT_FRIEND':
-                console.log('Reject friend request:', selectedUserForProfile?.id);
                 // TODO: Implement reject friend request API
                 alert('Đã từ chối lời mời kết bạn!');
                 break;
               case 'CANCEL_REQUEST':
-                console.log('Cancel friend request:', selectedUserForProfile?.id);
                 // TODO: Implement cancel friend request API
                 alert('Đã hủy lời mời kết bạn!');
                 break;
               default:
-                console.log('Unknown action:', action);
+                break;
             }
           } catch (error) {
             console.error('Error with friend action:', error);
