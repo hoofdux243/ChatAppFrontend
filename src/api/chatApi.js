@@ -22,20 +22,7 @@ const chatApi = {
 
     // Gửi tin nhắn đúng endpoint
     sendMessage: async (chatroomId, messageData) => {
-        // Create FormData for backend compatibility
-        const formData = new FormData();
-        formData.append('content', messageData.content || '');
-        formData.append('messageType', messageData.messageType || 'TEXT');
-        
-        if (messageData.replyToMessageId) {
-            formData.append('replyToMessageId', messageData.replyToMessageId);
-        }
-        
-        const response = await axios.post(`${addressAPI}/api/chatrooms/${chatroomId}/send-message`, formData, {
-            headers: {
-                'Content-Type': 'multipart/form-data'
-            }
-        });
+        const response = await axios.post(`${addressAPI}/api/chatrooms/${chatroomId}/send-message`, messageData);
         return response;
     },
 

@@ -8,33 +8,64 @@ class WebSocketService {
     this.connected = false;
     this.onUserStatusUpdate = null; // Callback để update UI
     this.sessionId = Date.now() + '-' + Math.random().toString(36).substr(2, 9); // Unique session ID
+    this.userToken = null; // Store token for this WebSocket instance
+    this.currentUser = null; // Store user info for this session
   }
 
   setOnUserStatusUpdate(callback) {
     this.onUserStatusUpdate = callback;
   }
 
-  connect(username = null) {
-    return new Promise((resolve, reject) => {
+  async connect(username = null, userToken = null) {
+    return new Promise(async (resolve, reject) => {
       console.log(`🔌 [${this.sessionId}] Connecting to WebSocket for user: ${username}`);
       
-      // IMPORTANT: Disconnect existing connection first
-      if (this.client && this.connected) {
-        console.log(`🔌 [${this.sessionId}] Disconnecting existing WebSocket connection before creating new one`);
-        this.disconnect();
+      // Store token and user info for this WebSocket instance
+      if (userToken) {
+        this.userToken = userToken;
+        this.currentUser = username;
+        console.log(`💾 [${this.sessionId}] Stored token for user ${username}:`, userToken ? `${userToken.substring(0, 20)}...` : 'null');
+      } else {
+        // Fallback to global token if not provided
+        this.userToken = apiService.getToken();
+        this.currentUser = username;
+        console.log(`💾 [${this.sessionId}] Using global token for user ${username}:`, this.userToken ? `${this.userToken.substring(0, 20)}...` : 'null');
       }
       
-      console.log(`🔌 [DEBUG] Creating SockJS connection to: http://localhost:8080/chatapp/ws (${Date.now()})`);
-      const socket = new SockJS('http://localhost:8080/chatapp/ws');
-      const token = apiService.getToken();
+      // IMPORTANT: Force disconnect any existing connection first
+      if (this.client) {
+        console.log(`🔌 [${this.sessionId}] Force disconnecting existing WebSocket connection`);
+        try {
+          if (this.client.connected) {
+            this.client.deactivate();
+          }
+        } catch (e) {
+          console.log(`⚠️ [${this.sessionId}] Error during force disconnect:`, e);
+        }
+        this.client = null;
+        this.connected = false;
+        
+        // Wait a bit to ensure clean disconnect
+        await new Promise(resolve => setTimeout(resolve, 1000));
+      }
       
-      console.log(`🔌 [DEBUG] Token for WebSocket auth:`, token ? `Present (${token.substring(0, 20)}...)` : 'Missing');
+      console.log(`🔌 [DEBUG] Creating SockJS connection to: http://localhost:8080/chatapp/ws`);
+      // Add session parameter to make each connection unique
+      const wsUrl = `http://localhost:8080/chatapp/ws?session=${this.sessionId}&user=${this.currentUser}&t=${Date.now()}`;
+      console.log(`🔌 [DEBUG] Unique WebSocket URL:`, wsUrl);
+      const socket = new SockJS(wsUrl);
+      
+      console.log(`🔌 [DEBUG] Token for WebSocket auth:`, this.userToken ? `Present (${this.userToken.substring(0, 20)}...)` : 'Missing');
       
       this.client = new Client({
         webSocketFactory: () => socket,
         connectHeaders: {
-          'Authorization': `Bearer ${token}`,
-          'Session-ID': this.sessionId // Add unique session identifier
+          'Authorization': `Bearer ${this.userToken}`,
+          'Session-ID': this.sessionId, // Add unique session identifier
+          'User': this.currentUser || 'unknown',
+          'X-User-Session': `${this.currentUser}-${this.sessionId}`,
+          'X-Timestamp': Date.now().toString(),
+          'X-Force-New-Connection': 'true'
         },
         debug: (str) => console.log(`STOMP [${this.sessionId}]:`, str),
         reconnectDelay: 5000,
@@ -44,6 +75,10 @@ class WebSocketService {
 
       this.client.onConnect = (frame) => {
         console.log(`✅ [${this.sessionId}] WebSocket Connected for user: ${username}`);
+        console.log(`🔍 [${this.sessionId}] Connection frame:`, frame);
+        console.log(`🔍 [${this.sessionId}] Connection headers used:`, this.client.connectHeaders);
+        console.log(`🔍 [${this.sessionId}] Stored token:`, this.userToken ? `${this.userToken.substring(0, 30)}...` : 'null');
+        console.log(`🔍 [${this.sessionId}] Current user:`, this.currentUser);
         this.connected = true;
         
         // Subscribe để nhận status updates từ backend - topic có username riêng
@@ -52,6 +87,15 @@ class WebSocketService {
           this.client.subscribe(`/topic/status/${username}`, (message) => {
             const userStatus = JSON.parse(message.body);
             console.log(`📢 [${this.sessionId}] User status update received:`, userStatus);
+            console.log(`🔍 [${this.sessionId}] Status details:`, {
+              id: userStatus.id,
+              username: userStatus.username, 
+              name: userStatus.name,
+              isOnline: userStatus.isOnline,
+              online: userStatus.online,
+              lastSeen: userStatus.lastSeen,
+              fullObject: userStatus
+            });
             
             // Chuẩn hóa format - đảm bảo có trường online
             const normalizedStatus = {
@@ -59,9 +103,14 @@ class WebSocketService {
               online: userStatus.online !== undefined ? userStatus.online : userStatus.isOnline
             };
             
+            console.log(`🔄 [${this.sessionId}] Normalized status:`, normalizedStatus);
+            
             // Gọi callback để update UI
             if (this.onUserStatusUpdate) {
+              console.log(`📤 [${this.sessionId}] Calling status update callback...`);
               this.onUserStatusUpdate(normalizedStatus);
+            } else {
+              console.log(`⚠️ [${this.sessionId}] No status update callback registered!`);
             }
           });
         } else {
@@ -123,20 +172,21 @@ class WebSocketService {
   async setUserOnline() {
     try {
       if (this.client && this.connected) {
-        console.log('🌐 Sending WebSocket message to: /app/user/connect');
+        console.log(`🌐 [${this.sessionId}] Sending WebSocket message to: /app/user/connect`);
+        console.log(`👤 [${this.sessionId}] Setting user online for:`, this.currentUser);
         // Gửi STOMP message tới WebSocket controller
         this.client.publish({
           destination: '/app/user/connect',
           body: JSON.stringify({})
         });
-        console.log('✅ User connect message sent successfully');
+        console.log(`✅ [${this.sessionId}] User connect message sent successfully`);
         return true;
       } else {
-        console.error('❌ WebSocket not connected');
+        console.error(`❌ [${this.sessionId}] WebSocket not connected`);
         return false;
       }
     } catch (error) {
-      console.error('❌ Error sending connect message:', error);
+      console.error(`❌ [${this.sessionId}] Error sending connect message:`, error);
       return false;
     }
   }
@@ -169,6 +219,15 @@ class WebSocketService {
       sessionId: this.sessionId,
       connected: this.connected,
       clientExists: !!this.client
+    });
+    
+    // Debug: Check current token being used by this WebSocket instance
+    console.log(`🔍 [DEBUG] Current WebSocket token:`, {
+      sessionId: this.sessionId,
+      storedToken: this.userToken ? `${this.userToken.substring(0, 30)}...` : 'null',
+      currentUser: this.currentUser,
+      hasClient: !!this.client,
+      connectionHeaders: this.client?.connectHeaders
     });
     
     return new Promise((resolve, reject) => {
@@ -323,17 +382,25 @@ class WebSocketService {
     console.log(`🔄 [${this.sessionId}] Attempting WebSocket reconnection...`);
     
     try {
-      // Get current user info for reconnection
-      const userInfo = localStorage.getItem('userInfo');
-      if (!userInfo) {
-        throw new Error('No user info found for reconnection');
+      // Use stored user info and token for reconnection
+      if (this.currentUser && this.userToken) {
+        await this.connect(this.currentUser, this.userToken);
+        console.log(`✅ [${this.sessionId}] WebSocket reconnection successful for user ${this.currentUser}`);
+        return true;
+      } else {
+        // Fallback to localStorage if available
+        const userInfo = localStorage.getItem('userInfo');
+        if (!userInfo) {
+          throw new Error('No user info found for reconnection');
+        }
+        
+        const user = JSON.parse(userInfo);
+        const token = apiService.getToken();
+        await this.connect(user.username, token);
+        
+        console.log(`✅ [${this.sessionId}] WebSocket reconnection successful`);
+        return true;
       }
-      
-      const user = JSON.parse(userInfo);
-      await this.connect(user.username);
-      
-      console.log(`✅ [${this.sessionId}] WebSocket reconnection successful`);
-      return true;
     } catch (error) {
       console.error(`❌ [${this.sessionId}] WebSocket reconnection failed:`, error);
       throw error;
@@ -346,6 +413,11 @@ class WebSocketService {
   }
 }
 
-// Use singleton but with session-based isolation
+// Create new instance for each app session instead of singleton
+// This prevents token/connection mixing between different browser windows
+export const createWebSocketService = () => new WebSocketService();
+
+// For backward compatibility, export a default instance
+// But recommend using createWebSocketService() for multi-window support
 const webSocketService = new WebSocketService();
 export default webSocketService;

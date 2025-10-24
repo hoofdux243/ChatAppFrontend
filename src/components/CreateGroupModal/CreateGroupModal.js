@@ -101,7 +101,7 @@ const CreateGroupModal = ({ isOpen, onClose, onCreateGroup }) => {
   };
 
   const handleCreateGroup = async () => {
-    if (selectedUsers.length === 0) {
+    if ((selectedUsers || []).length === 0) {
       alert('Vui lòng chọn ít nhất 1 thành viên để tạo cuộc trò chuyện');
       return;
     }
@@ -178,9 +178,9 @@ const CreateGroupModal = ({ isOpen, onClose, onCreateGroup }) => {
           </div>
 
           {/* Selected Users */}
-          {selectedUsers.length > 0 && (
+          {(selectedUsers || []).length > 0 && (
             <div className="selected-users-section">
-              <div className="section-title">Đã chọn ({selectedUsers.length})</div>
+              <div className="section-title">Đã chọn ({(selectedUsers || []).length})</div>
               <div className="selected-users-list">
                 {selectedUsers.map(user => (
                   <div key={user.userId || user.contactId} className="selected-user-item">
@@ -265,9 +265,9 @@ const CreateGroupModal = ({ isOpen, onClose, onCreateGroup }) => {
           <button 
             className="create-btn" 
             onClick={handleCreateGroup}
-            disabled={selectedUsers.length === 0 || !groupName.trim() || loading}
+            disabled={(selectedUsers || []).length === 0 || !groupName.trim() || loading}
           >
-            {loading ? 'Đang tạo...' : selectedUsers.length === 1 ? 'Tạo cuộc trò chuyện' : 'Tạo nhóm'}
+            {loading ? 'Đang tạo...' : (selectedUsers || []).length === 1 ? 'Tạo cuộc trò chuyện' : 'Tạo nhóm'}
           </button>
         </div>
       </div>

@@ -1,7 +1,7 @@
 import { useReducer, createContext, useContext, useEffect } from 'react';
 import apiService from '../services/apiService';
 import chatService from '../services/chatService';
-import webSocketService from '../services/webSocketService';
+// Remove global webSocketService import - will be passed from context
 
 // Auth action types
 const AUTH_ACTIONS = {
@@ -102,33 +102,7 @@ export const AuthProvider = ({ children }) => {
           } 
         });
 
-        // 🔌 Auto connect WebSocket sau khi login thành công
-        try {
-          await webSocketService.connect(response.user.username);
-          
-          // Set user online - backend sẽ broadcast tới friends
-          setTimeout(async () => {
-            const result = await webSocketService.setUserOnline();
-            
-            // MANUAL: Force update current user status in conversations
-            setTimeout(() => {
-              // Trigger a manual status update since backend doesn't broadcast
-              const currentUser = response.user;
-              if (currentUser) {
-                // You'll need to add this method to ChatContext
-                window.dispatchEvent(new CustomEvent('forceUserStatusUpdate', {
-                  detail: {
-                    userId: currentUser.id,
-                    username: currentUser.username,
-                    isOnline: true
-                  }
-                }));
-              }
-            }, 500);
-          }, 1000);
-        } catch (wsError) {
-          console.error('❌ WebSocket connection failed:', wsError);
-        }
+        // WebSocket connection will be handled by ChatContext
         
         return { success: true, data: response };
       } else {
@@ -158,15 +132,11 @@ export const AuthProvider = ({ children }) => {
 
   // Logout function - Đơn giản
   const logout = async () => {
-    // 🔌 Send disconnect message và disconnect WebSocket khi logout
-    await webSocketService.setUserOffline();
-    
     // Clear token từ API service và reset state
     apiService.clearToken();
     // Clear chat service cache
     chatService.clearCache();
-    // Disconnect WebSocket
-    webSocketService.disconnect();
+    // WebSocket disconnect will be handled by ChatContext
     dispatch({ type: AUTH_ACTIONS.LOGOUT });
   };
 
@@ -183,16 +153,11 @@ export const AuthProvider = ({ children }) => {
   // Handle page unload - set user offline when close browser/tab
   useEffect(() => {
     const handleBeforeUnload = async () => {
-      if (state.isAuthenticated) {
-        await webSocketService.setUserOffline();
-      }
+      // WebSocket cleanup will be handled by ChatContext
     };
 
     const handleUnload = () => {
-      if (state.isAuthenticated) {
-        // Synchronous call for page unload
-        webSocketService.setUserOffline();
-      }
+      // WebSocket cleanup will be handled by ChatContext
     };
 
     window.addEventListener('beforeunload', handleBeforeUnload);

@@ -44,9 +44,9 @@ const ChatList = ({ onSelectConversation, selectedConversation }) => {
         await loadConversations();
         
         // Determine chat type and create conversation object
-        const isGroupChat = groupData.memberIds.length > 1;
+        const isGroupChat = (groupData.memberIds || []).length > 1;
         const conversationTitle = isGroupChat 
-          ? (groupData.name || `Nhóm ${groupData.memberIds.length + 1} người`)
+          ? (groupData.name || `Nhóm ${(groupData.memberIds || []).length + 1} người`)
           : 'Cuộc trò chuyện mới';
         
         // Create conversation object to select
@@ -59,7 +59,7 @@ const ChatList = ({ onSelectConversation, selectedConversation }) => {
           timestamp: 'Vừa xong',
           isGroup: isGroupChat,
           roomType: isGroupChat ? 'PUBLIC' : 'PRIVATE',
-          memberCount: groupData.memberIds.length + 1, // +1 for current user
+          memberCount: (groupData.memberIds || []).length + 1, // +1 for current user
           unreadCount: 0
         };
         
@@ -97,7 +97,7 @@ const ChatList = ({ onSelectConversation, selectedConversation }) => {
             const results = await chatService.searchUsers(searchValue);
             
             if (results && results.result && results.result.data) {
-              setSearchResults(results.result.data);
+              setSearchResults(Array.isArray(results.result.data) ? results.result.data : []);
               setShowSearchResults(true);
             } else {
               setSearchResults([]);
@@ -142,10 +142,10 @@ const ChatList = ({ onSelectConversation, selectedConversation }) => {
 
   // Reload conversations khi component mount
   useEffect(() => {
-    if (conversations.length === 0) {
+    if ((conversations || []).length === 0) {
       loadConversations();
     }
-  }, [conversations.length, loadConversations]);
+  }, [(conversations || []).length, loadConversations]);
 
   const handleConversationClick = (conversation) => {
     onSelectConversation(conversation);
@@ -300,11 +300,11 @@ const ChatList = ({ onSelectConversation, selectedConversation }) => {
     loadConversations();
   };
 
-  // Separate friends and strangers
-  const friends = searchResults.filter(user => user.isContact === true);
-  const strangers = searchResults.filter(user => user.isContact === false);
+  // Separate friends and strangers with safety check
+  const friends = (searchResults || []).filter(user => user.isContact === true);
+  const strangers = (searchResults || []).filter(user => user.isContact === false);
 
-  if (loading && conversations.length === 0) {
+  if (loading && (conversations || []).length === 0) {
     return (
       <div className="chat-list-container">
         <div className="chat-list-header">
@@ -476,7 +476,7 @@ const ChatList = ({ onSelectConversation, selectedConversation }) => {
             {activeTab === 'contacts' ? (
               // Hiển thị kết quả search users
               <>
-                {friends.length > 0 && (
+                {(friends || []).length > 0 && (
                   <div>
                     <div style={{ 
                       padding: '12px 20px 8px', 
@@ -485,9 +485,9 @@ const ChatList = ({ onSelectConversation, selectedConversation }) => {
                       color: '#374151',
                       borderBottom: '1px solid #f3f4f6'
                     }}>
-                      Bạn bè ({friends.length})
+                      Bạn bè ({(friends || []).length})
                     </div>
-                    {friends.map((user) => (
+                    {(friends || []).map((user) => (
                       <div
                         key={`friend_${user.id}`}
                         className="chat-item"
@@ -519,7 +519,7 @@ const ChatList = ({ onSelectConversation, selectedConversation }) => {
                   </div>
                 )}
                 
-                {strangers.length > 0 && (
+                {(strangers || []).length > 0 && (
                   <div>
                     <div style={{ 
                       padding: '12px 20px 8px', 
@@ -528,9 +528,9 @@ const ChatList = ({ onSelectConversation, selectedConversation }) => {
                       color: '#374151',
                       borderBottom: '1px solid #f3f4f6'
                     }}>
-                      Người lạ ({strangers.length})
+                      Người lạ ({(strangers || []).length})
                     </div>
-                    {strangers.map((user) => (
+                    {(strangers || []).map((user) => (
                       <div
                         key={`stranger_${user.id}`}
                         className="chat-item"
@@ -562,7 +562,7 @@ const ChatList = ({ onSelectConversation, selectedConversation }) => {
                   </div>
                 )}
                 
-                {searchResults.length === 0 && !isSearching && searchTerm.trim() && (
+                {(searchResults || []).length === 0 && !isSearching && searchTerm.trim() && (
                   <div style={{ 
                     padding: '40px 20px', 
                     textAlign: 'center', 
@@ -576,7 +576,7 @@ const ChatList = ({ onSelectConversation, selectedConversation }) => {
             ) : (
               // Hiển thị kết quả search tin nhắn
               <>
-                {chatSearchResults.length > 0 ? (
+                {(chatSearchResults || []).length > 0 ? (
                   <div>
                     <div style={{ 
                       padding: '12px 20px 8px', 
@@ -585,9 +585,9 @@ const ChatList = ({ onSelectConversation, selectedConversation }) => {
                       color: '#374151',
                       borderBottom: '1px solid #f3f4f6'
                     }}>
-                      Cuộc trò chuyện ({chatSearchResults.length})
+                      Cuộc trò chuyện ({(chatSearchResults || []).length})
                     </div>
-                    {chatSearchResults.map((conversation) => (
+                    {(chatSearchResults || []).map((conversation) => (
                       <div
                         key={conversation.id}
                         className={`chat-item ${selectedConversation?.id === conversation.id ? 'active' : ''}`}
@@ -649,7 +649,7 @@ const ChatList = ({ onSelectConversation, selectedConversation }) => {
           </div>
         ) : (
           // Hiển thị tất cả conversations như bình thường
-          conversations.map((conversation) => {
+          (conversations || []).map((conversation) => {
             return (
               <div
                 key={conversation.id}

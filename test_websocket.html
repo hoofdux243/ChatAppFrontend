@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>WebSocket Test</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/sockjs-client/1.6.1/sockjs.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/stomp.js/2.3.3/stomp.min.js"></script>
+</head>
+<body>
+    <h1>WebSocket Connection Test</h1>
+    <div id="status">Testing...</div>
+    <div id="logs"></div>
+
+    <script>
+        const logs = document.getElementById('logs');
+        const status = document.getElementById('status');
+        
+        function log(message) {
+            console.log(message);
+            logs.innerHTML += `<div>${message}</div>`;
+        }
+
+        // Test endpoints
+        const endpoints = [
+            'http://localhost:8080/ws',
+            'http://localhost:8080/chatapp/ws'
+        ];
+
+        async function testEndpoint(url) {
+            return new Promise((resolve) => {
+                log(`Testing: ${url}`);
+                
+                try {
+                    const socket = new SockJS(url);
+                    const client = Stomp.over(socket);
+                    
+                    client.connect({}, 
+                        (frame) => {
+                            log(`✅ SUCCESS: ${url} - Connected`);
+                            client.disconnect();
+                            resolve({ url, success: true });
+                        },
+                        (error) => {
+                            log(`❌ FAILED: ${url} - Error: ${error}`);
+                            resolve({ url, success: false, error });
+                        }
+                    );
+                    
+                    // Timeout after 5 seconds
+                    setTimeout(() => {
+                        log(`⏰ TIMEOUT: ${url}`);
+                        try { client.disconnect(); } catch(e) {}
+                        resolve({ url, success: false, error: 'timeout' });
+                    }, 5000);
+                    
+                } catch (error) {
+                    log(`💥 EXCEPTION: ${url} - ${error}`);
+                    resolve({ url, success: false, error });
+                }
+            });
+        }
+
+        // Test all endpoints
+        async function runTests() {
+            status.textContent = 'Testing endpoints...';
+            
+            for (const endpoint of endpoints) {
+                await testEndpoint(endpoint);
+                await new Promise(resolve => setTimeout(resolve, 1000)); // Wait 1s between tests
+            }
+            
+            status.textContent = 'Tests completed. Check logs above.';
+        }
+
+        runTests();
+    </script>
+</body>
+</html>

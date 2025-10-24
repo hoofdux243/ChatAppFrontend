@@ -251,7 +251,7 @@ const FriendsMainContent = ({ activeTab, onSelectChat }) => {
   const renderFriendsContent = () => (
     <>
       <div className="friends-header">
-        <h2>Bạn bè ({contacts.length})</h2>
+        <h2>Bạn bè ({(contacts || []).length})</h2>
         <div className="header-actions">
           <button className="btn-secondary">Tìm (A-Z)</button>
           <button className="btn-primary">Tất cả</button>
@@ -271,7 +271,7 @@ const FriendsMainContent = ({ activeTab, onSelectChat }) => {
       <div className="content-section">
         {loading ? (
           <div className="loading-state">Đang tải...</div>
-        ) : contacts.length === 0 && searchTerm ? (
+        ) : (contacts || []).length === 0 && searchTerm ? (
           <div className="no-results">
             <p>Không tìm thấy bạn bè nào với từ khóa "{searchTerm}"</p>
           </div>
@@ -305,7 +305,7 @@ const FriendsMainContent = ({ activeTab, onSelectChat }) => {
   const renderGroupsContent = () => (
     <>
       <div className="friends-header">
-        <h2>Danh sách nhóm và cộng đồng ({groups.length})</h2>
+        <h2>Danh sách nhóm và cộng đồng ({(groups || []).length})</h2>
         <div className="header-actions">
           <button className="btn-primary">Tạo nhóm</button>
         </div>
@@ -324,11 +324,11 @@ const FriendsMainContent = ({ activeTab, onSelectChat }) => {
       <div className="content-section">
         {loading ? (
           <div className="loading-state">Đang tải...</div>
-        ) : groups.length === 0 && searchTerm ? (
+        ) : (groups || []).length === 0 && searchTerm ? (
           <div className="no-results">
             <p>Không tìm thấy nhóm nào với từ khóa "{searchTerm}"</p>
           </div>
-        ) : groups.length === 0 ? (
+        ) : (groups || []).length === 0 ? (
           <div className="empty-state">
             <div className="empty-icon">👥</div>
             <h3>Chưa có nhóm nào</h3>
@@ -365,7 +365,7 @@ const FriendsMainContent = ({ activeTab, onSelectChat }) => {
   const renderRequestsContent = () => (
     <>
       <div className="friends-header">
-        <h2>Lời mời kết bạn ({friendRequests.length})</h2>
+        <h2>Lời mời kết bạn ({(friendRequests || []).length})</h2>
       </div>
 
       <div className="search-section">
@@ -381,7 +381,7 @@ const FriendsMainContent = ({ activeTab, onSelectChat }) => {
       <div className="content-section">
         {loading ? (
           <div className="loading-state">Đang tải...</div>
-        ) : friendRequests.length === 0 ? (
+        ) : (friendRequests || []).length === 0 ? (
           <div className="empty-state">
             <div className="empty-icon">📩</div>
             <h3>Không có lời mời kết bạn nào</h3>
@@ -427,7 +427,7 @@ const FriendsMainContent = ({ activeTab, onSelectChat }) => {
   const renderSentRequestsContent = () => (
     <>
       <div className="friends-header">
-        <h2>Lời mời kết bạn đã gửi ({sentRequests.length})</h2>
+        <h2>Lời mời kết bạn đã gửi ({(sentRequests || []).length})</h2>
       </div>
 
       <div className="search-section">
@@ -443,7 +443,7 @@ const FriendsMainContent = ({ activeTab, onSelectChat }) => {
       <div className="content-section">
         {loading ? (
           <div className="loading-state">Đang tải...</div>
-        ) : sentRequests.length === 0 ? (
+        ) : (sentRequests || []).length === 0 ? (
           <div className="empty-state">
             <div className="empty-icon">📤</div>
             <h3>Chưa gửi lời mời kết bạn nào</h3>

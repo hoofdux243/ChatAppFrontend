@@ -1,8 +1,7 @@
 import chatApi from "../api/chatApi";
 import axios from 'axios';
 import { getAuthToken } from '../utils/axiosConfig';
-import webSocketService from './webSocketService';
-import { apiLogger } from '../utils/debugLogger';
+// Remove global webSocketService import - will be passed as parameter
 
 const chatService = {
     // Lấy danh sách conversation theo user ID
@@ -11,7 +10,7 @@ const chatService = {
             const response = await chatApi.getConversationWithIdAccount();
             return response.data;
         } catch (error) {
-            apiLogger.error('Error fetching conversations:', error);
+            console.error('Error fetching conversations:', error);
             throw error;
         }
     },
@@ -39,10 +38,17 @@ const chatService = {
     },
 
     // Gửi tin nhắn: Text qua WebSocket, Image qua HTTP
-    sendMessage: async (chatroomId, messageData) => {
+    sendMessage: async (chatroomId, messageData, webSocketService = null) => {
+        console.log(`🔄 [DEBUG] ChatService.sendMessage called:`, {
+            chatroomId,
+            messageData,
+            hasWebSocketService: !!webSocketService
+        });
+        
         try {
             // Nếu là image message, gửi qua HTTP API
             if (messageData.messageType === 'IMAGE' && messageData.image) {
+                console.log(`📷 [DEBUG] Sending image message via HTTP API`);
                 const formData = new FormData();
                 formData.append('content', '');
                 formData.append('messageType', 'IMAGE');
@@ -64,21 +70,42 @@ const chatService = {
                     formData,
                     config
                 );
+                console.log(`✅ [DEBUG] Image message sent successfully:`, response.data);
                 return response.data;
             }
             
-            // Text messages - try WebSocket first, fallback to HTTP
-            try {
+            // Text messages - Test both WebSocket and HTTP
+            if (webSocketService && webSocketService.isConnected()) {
+                console.log(`💬 [DEBUG] Sending text message via WebSocket (backend fixed!)`);
                 const response = await webSocketService.sendMessage(chatroomId, messageData);
+                console.log(`✅ [DEBUG] Text message sent successfully via WebSocket:`, response);
                 return response;
-            } catch (wsError) {
-                apiLogger.error('WebSocket failed, falling back to HTTP API:', wsError);
-                // Fallback to HTTP API
-                const response = await chatApi.sendMessage(chatroomId, messageData);
+            } else {
+                // Fallback to HTTP if WebSocket not available
+                console.log(`🔄 [DEBUG] WebSocket not available, falling back to HTTP for text message`);
+                
+                const token = getAuthToken();
+                const config = {
+                    headers: {
+                        'Content-Type': 'application/json',
+                        ...(token && { Authorization: `Bearer ${token}` })
+                    }
+                };
+                
+                const response = await axios.post(
+                    `http://localhost:8080/chatapp/api/chatrooms/${chatroomId}/send-message`,
+                    {
+                        content: messageData.content,
+                        messageType: messageData.messageType,
+                        ...(messageData.replyToMessageId && { replyToMessageId: messageData.replyToMessageId })
+                    },
+                    config
+                );
+                console.log(`✅ [DEBUG] Text message sent successfully via HTTP fallback:`, response.data);
                 return response.data;
             }
         } catch (error) {
-            apiLogger.error('❌ Error sending message:', error);
+            console.error('❌ Error sending message:', error);
             throw error;
         }
     },

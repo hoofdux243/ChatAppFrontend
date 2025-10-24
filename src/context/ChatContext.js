@@ -1,8 +1,8 @@
-import { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
 import { useAuth } from '../hooks/useAuth';
 import chatService from '../services/chatService';
-import webSocketService from '../services/webSocketService';
-import { chatLogger } from '../utils/debugLogger';
+import apiService from '../services/apiService';
+import { createWebSocketService } from '../services/webSocketService';
 
 // 1. Tạo Context
 const ChatContext = createContext();
@@ -20,6 +20,13 @@ export const useChat = () => {
 export const ChatProvider = ({ children }) => {
   // Get user from Auth context
   const { user, isAuthenticated, loading: authLoading } = useAuth();
+  
+  // Create unique WebSocket service instance for this session to prevent token mixing
+  const webSocketService = useMemo(() => {
+    const service = createWebSocketService();
+    console.log(`🔧 [DEBUG] Created new WebSocket service instance for session`);
+    return service;
+  }, []); // Only create once per ChatProvider instance
   
   const [conversations, setConversations] = useState([]);
   const [messages, setMessages] = useState({}); // idConversation => [msg1, msg2,...]
@@ -60,7 +67,7 @@ export const ChatProvider = ({ children }) => {
         setConversations(transformedConversations);
       }
     } catch (error) {
-      chatLogger.error('Error loading conversations:', error);
+      console.error('Error loading conversations:', error);
       
       // Kiểm tra lỗi 401 (token expired)
       if (error.response?.status === 401) {
@@ -101,6 +108,12 @@ export const ChatProvider = ({ children }) => {
       const response = await chatService.getMessagesByIdConversation(conversationId, page, size);
       const messages = response?.result?.data || [];
       
+      console.log(`🔍 [DEBUG] Raw messages from API (page ${page}):`, messages.map(m => ({
+        content: m.content,
+        sentAt: m.sentAt,
+        messageId: m.messageId
+      })));
+      
       // Pagination ở cùng level với data, không phải nested
       const pagination = {
         hasNext: response?.result?.hasNext || false,
@@ -110,21 +123,26 @@ export const ChatProvider = ({ children }) => {
         totalElements: response?.result?.totalElements || 0
       };
       
-      // Transform messages: Test multiple comparison methods  
-      const transformedMessages = messages.map(msg => {
-        const isOwnByUsername = (msg.senderUsername || msg.senderName) === user?.username;
-        const isOwnByUserId = (msg.senderUsername || msg.senderName) === user?.id;
-        const isOwnBySenderId = msg.senderId === user?.id;
-        
-        return {
-          ...msg,
-          senderUsername: msg.senderUsername || msg.senderName,
-          isOwn: isOwnByUsername || isOwnByUserId || isOwnBySenderId
-        };
-      });
+      // Transform messages: compare senderUsername with current user's username
+      const transformedMessages = messages.map(msg => ({
+        ...msg,
+        // Ensure senderUsername is available for both HTTP and WebSocket messages
+        senderUsername: msg.senderUsername || msg.senderName,
+        isOwn: (msg.senderUsername || msg.senderName) === user?.username
+      }));
       
       // Backend sends NEWEST → OLDEST, but chat needs OLDEST → NEWEST (newest at bottom)
       const reversedMessages = [...transformedMessages].reverse();
+      
+      console.log(`📋 [DEBUG] Original order (newest first):`, transformedMessages.slice(0,3).map(m => ({
+        content: m.content.substring(0,10),
+        sentAt: m.sentAt
+      })));
+      
+      console.log(`🔄 [DEBUG] Reversed order (oldest first):`, reversedMessages.slice(0,3).map(m => ({
+        content: m.content.substring(0,10),
+        sentAt: m.sentAt
+      })));
       
       if (page === 0) {
         // Initial load - use reversed array (oldest → newest)
@@ -132,12 +150,14 @@ export const ChatProvider = ({ children }) => {
           ...prev,
           [conversationId]: reversedMessages
         }));
+        console.log(`💬 [DEBUG] Set initial messages with reverse - newest should be at bottom`);
       } else {
         // Load older messages (pagination) - prepend reversed messages
         setMessages(prev => ({
           ...prev,
           [conversationId]: [...reversedMessages, ...(prev[conversationId] || [])]
         }));
+        console.log(`📜 [DEBUG] Prepended older messages with reverse`);
       }
       
       return {
@@ -145,40 +165,64 @@ export const ChatProvider = ({ children }) => {
         pagination: pagination
       };
     } catch (error) {
-      chatLogger.error('Error loading messages:', error);
+      console.error('Error loading messages:', error);
       return { data: [], pagination: { hasNext: false } };
     }
   }, [user?.username]);
 
   // Thêm message mới vào conversation
   const addMessage = useCallback((conversationId, message) => {
+    console.log(`📝 [DEBUG] addMessage called:`, {
+      conversationId,
+      message,
+      messageType: typeof message,
+      currentUserId: user?.id
+    });
+    
     // Validate message object
     if (!message || typeof message !== 'object' || !message.content) {
-      chatLogger.message('⚠️ Skipping invalid message:', message);
+      console.warn('⚠️ Skipping invalid message:', message);
       return;
     }
     
-    // Skip empty messages
+    // Debug: Check if message content is empty
+    console.log('🔍 Adding message:', message);
     if (!message.content || message.content.trim() === '') {
-      chatLogger.message('⚠️ Skipping empty message:', message);
-      return;
+      console.warn('⚠️ Skipping empty message:', message);
+      return; // Skip empty messages
     }
     
-    // Test both comparison methods
-    const isOwnByUsername = (message.senderUsername || message.senderName) === user?.username;
-    const isOwnByUserId = (message.senderUsername || message.senderName) === user?.id;
-    const isOwnBySenderId = message.senderId === user?.id;
+    // Debug isOwn logic in detail
+    console.log(`🔍 [DEBUG] isOwn calculation:`, {
+      messageSenderId: message.senderId,
+      messageUsername: message.senderUsername || message.senderName,
+      currentUserId: user?.id,
+      currentUsername: user?.username,
+      senderIdType: typeof message.senderId,
+      currentIdType: typeof user?.id
+    });
     
-    // Use whichever method works
-    const finalIsOwn = isOwnByUsername || isOwnByUserId || isOwnBySenderId;
+    // Try multiple ways to determine isOwn
+    const isOwnById = message.senderId === user?.id;
+    const isOwnByUsername = (message.senderUsername || message.senderName) === user?.username;
+    
+    console.log(`🔍 [DEBUG] isOwn comparison results:`, {
+      isOwnById,
+      isOwnByUsername,
+      finalChoice: isOwnByUsername // Use username comparison as more reliable
+    });
     
     const transformedMessage = {
       ...message,
-      isOwn: finalIsOwn
+      isOwn: isOwnByUsername // Use username comparison instead of ID
     };
+    
+    console.log(`🔄 [DEBUG] Transformed message:`, transformedMessage);
     
     setMessages(prev => {
       const existingMessages = prev[conversationId] || [];
+      
+      console.log(`📋 [DEBUG] Existing messages for conversation ${conversationId}:`, existingMessages.length);
       
       // Check for duplicates by messageId
       const isDuplicate = existingMessages.some(msg => 
@@ -186,11 +230,12 @@ export const ChatProvider = ({ children }) => {
       );
       
       if (isDuplicate) {
-        chatLogger.message('⚠️ Skipping duplicate message:', transformedMessage.messageId);
+        console.warn('⚠️ Skipping duplicate message:', transformedMessage.messageId);
         return prev;
       }
       
       const newMessages = [...existingMessages, transformedMessage];
+      console.log(`✅ [DEBUG] Added message to conversation ${conversationId}. Total messages:`, newMessages.length);
       
       return {
         ...prev,
@@ -220,45 +265,120 @@ export const ChatProvider = ({ children }) => {
 
   // Update user status in conversations
   const updateUserStatus = useCallback((userStatus) => {
+    console.log(`🔔 [DEBUG] Received user status update:`, userStatus);
+    console.log(`🔍 [DEBUG] Current conversations count:`, (conversations || []).length);
+    console.log(`🔍 [DEBUG] Looking for conversations with user:`, {
+      statusUserId: userStatus.id,
+      statusUsername: userStatus.username
+    });
+    
     setConversations(prev => {
-      return prev.map(conv => {
-        if (conv.roomType === 'PRIVATE' && conv.member?.id === userStatus.id) {
-          return {
-            ...conv,
-            member: {
-              ...conv.member,
+      const updatedConversations = prev.map(conv => {
+        // Check if this is a private chat with the user who changed status
+        if (conv.roomType === 'PRIVATE' && conv.member) {
+          // Match by username or id
+          const isMatchingUser = 
+            conv.member.id === userStatus.id || 
+            conv.member.username === userStatus.username;
+            
+          if (isMatchingUser) {
+            console.log(`✅ [DEBUG] Updating status for conversation with ${userStatus.username}:`, {
+              conversationId: conv.id,
+              conversationTitle: conv.title,
+              oldStatus: conv.member.isOnline,
+              newStatus: userStatus.isOnline || userStatus.online,
+              oldIsOnline: conv.isOnline,
+              memberObject: conv.member
+            });
+            
+            const updatedConv = {
+              ...conv,
+              member: {
+                ...conv.member,
+                isOnline: userStatus.isOnline || userStatus.online,
+                lastSeen: userStatus.lastSeen
+              },
+              // Also update root level status for compatibility
               isOnline: userStatus.isOnline || userStatus.online,
               lastSeen: userStatus.lastSeen
-            }
-          };
+            };
+            
+            console.log(`🔄 [DEBUG] Updated conversation:`, updatedConv);
+            return updatedConv;
+          }
         }
         return conv;
       });
+      
+      console.log(`📊 [DEBUG] Status update result:`, {
+        totalConversations: updatedConversations.length,
+        updatedAny: JSON.stringify(updatedConversations) !== JSON.stringify(prev)
+      });
+      
+      return updatedConversations;
+    });
+    
+    // Also update selectedConversation if it matches the user whose status changed
+    setSelectedConversation(prevSelected => {
+      if (prevSelected && prevSelected.roomType === 'PRIVATE' && prevSelected.member) {
+        const isMatchingUser = 
+          prevSelected.member.id === userStatus.id || 
+          prevSelected.member.username === userStatus.username;
+          
+        if (isMatchingUser) {
+          console.log(`🔄 [DEBUG] Updating selected conversation status for ${userStatus.username}`);
+          
+          return {
+            ...prevSelected,
+            member: {
+              ...prevSelected.member,
+              isOnline: userStatus.isOnline || userStatus.online,
+              lastSeen: userStatus.lastSeen
+            },
+            // Also update root level status for compatibility
+            isOnline: userStatus.isOnline || userStatus.online,
+            lastSeen: userStatus.lastSeen
+          };
+        }
+      }
+      return prevSelected;
     });
   }, []);
 
   // Send message via HTTP API only (disable WebSocket for now)  
   const sendMessage = useCallback(async (conversationId, content) => {
+    console.log(`🎯 [DEBUG] ChatContext.sendMessage called:`, {
+      conversationId,
+      content
+    });
+    
     const messageData = {
       content: content,
       messageType: 'TEXT'
     };
     
+    console.log(`📋 [DEBUG] Message data prepared:`, messageData);
+    
     try {
-      const result = await chatService.sendMessage(conversationId, messageData);
+      // Pass webSocketService instance to chatService
+      const result = await chatService.sendMessage(conversationId, messageData, webSocketService);
+      console.log(`📨 [DEBUG] ChatService returned result:`, result);
       
       // For WebSocket messages, don't add locally - they will come back via subscription
       // Only add locally for HTTP image messages that return actual message objects
       if (result && result.message && typeof result.message === 'object' && result.message.messageId) {
+        console.log(`➕ [DEBUG] Adding HTTP message to local state:`, result.message);
         addMessage(conversationId, result.message);
+      } else {
+        console.log(`📡 [DEBUG] WebSocket message sent - waiting for subscription callback`);
       }
       
       return result;
     } catch (error) {
-      chatLogger.error('Error sending message:', error);
+      console.error('Error sending message:', error);
       throw error;
     }
-  }, [addMessage]);
+  }, [addMessage, webSocketService]);
 
   // Send image message via HTTP API
   const sendImageMessage = useCallback(async (conversationId, imageFile) => {
@@ -269,7 +389,8 @@ export const ChatProvider = ({ children }) => {
     };
     
     try {
-      const result = await chatService.sendMessage(conversationId, messageData);
+      // Pass webSocketService instance to chatService
+      const result = await chatService.sendMessage(conversationId, messageData, webSocketService);
       
       // Add message locally for immediate UI update
       if (result && result.message) {
@@ -278,10 +399,10 @@ export const ChatProvider = ({ children }) => {
       
       return result;
     } catch (error) {
-      chatLogger.error('Error sending image:', error);
+      console.error('Error sending image:', error);
       throw error;
     }
-  }, [addMessage]);
+  }, [addMessage, webSocketService]);
 
   // Clear data when user logs out
   useEffect(() => {
@@ -300,29 +421,105 @@ export const ChatProvider = ({ children }) => {
   // Setup WebSocket when authenticated
   useEffect(() => {
     if (isAuthenticated && !authLoading && webSocketService && user?.username) {
-      // Check token first
-      const apiService = require('../services/apiService').default;
-      const token = apiService.getToken();
-      chatLogger.websocket(`Attempting WebSocket connection with token: ${token ? token.substring(0, 20) + '...' : 'NONE'}`);
+      // Setup WebSocket connection with user's token
+      const connectWebSocket = async () => {
+        try {
+          console.log(`🔌 [DEBUG] Connecting WebSocket for user: ${user.username}`);
+          
+          // Get current token for this session
+          const currentToken = apiService.getToken();
+          console.log(`🔑 [DEBUG] Current token for ${user.username}:`, currentToken ? `${currentToken.substring(0, 20)}...` : 'null');
+          
+          // Connect with user-specific token
+          await webSocketService.connect(user.username, currentToken);
+          
+          // Set user online after connection
+          setTimeout(async () => {
+            await webSocketService.setUserOnline();
+          }, 1000);
+          
+          // Setup status subscription
+          webSocketService.setOnUserStatusUpdate(updateUserStatus);
+          
+          // Subscribe to all chatrooms for notifications
+          subscribeToAllChatrooms();
+        } catch (error) {
+          console.error('❌ [DEBUG] WebSocket connection failed:', error);
+        }
+      };
       
-      // Connect to WebSocket first
-      webSocketService.connect(user.username).then(() => {
-        chatLogger.success('WebSocket connected successfully');
-        // Setup status subscription after connection
-        webSocketService.setOnUserStatusUpdate(updateUserStatus);
-      }).catch(error => {
-        chatLogger.error('Failed to connect WebSocket - continuing without real-time features:', error);
-        // Continue without WebSocket for now
-      });
+      connectWebSocket();
     }
     
     return () => {
       if (webSocketService && webSocketService.isConnected()) {
         webSocketService.setOnUserStatusUpdate(null);
-        webSocketService.disconnect();
+        // Unsubscribe from all chatrooms when logging out
+        unsubscribeFromAllChatrooms();
+        // Set user offline and disconnect
+        webSocketService.setUserOffline().finally(() => {
+          webSocketService.disconnect();
+        });
       }
     };
-  }, [isAuthenticated, authLoading, user?.username, updateUserStatus, webSocketService]);
+  }, [isAuthenticated, authLoading, user?.username, webSocketService]);
+
+  // Subscribe to all chatrooms for global notifications
+  const subscribeToAllChatrooms = useCallback(() => {
+    console.log('🔔 [DEBUG] Subscribing to all chatrooms...');
+    
+    conversations.forEach(conversation => {
+      if (webSocketService && webSocketService.isConnected()) {
+        console.log(`🔔 [DEBUG] Subscribing to chatroom ${conversation.id} for notifications`);
+        
+        const subscription = webSocketService.subscribeToMessages(conversation.id, (newMessage) => {
+          console.log(`📨 [GLOBAL] New message received for chatroom ${conversation.id}:`, newMessage);
+          
+          // Add message to the conversation
+          addMessage(conversation.id, newMessage);
+          
+          // You can add notification logic here
+          // For example: show browser notification if not in current chat
+          if (selectedConversation?.id !== conversation.id) {
+            console.log(`🔔 [NOTIFICATION] New message in other chatroom: ${conversation.title}`);
+            // Could show browser notification here
+          }
+        });
+        
+        // Store subscription for cleanup
+        if (!window.globalChatroomSubscriptions) {
+          window.globalChatroomSubscriptions = new Map();
+        }
+        window.globalChatroomSubscriptions.set(conversation.id, subscription);
+      }
+    });
+  }, [conversations, addMessage, selectedConversation]);
+
+  // Unsubscribe from all chatrooms
+  const unsubscribeFromAllChatrooms = useCallback(() => {
+    console.log('🔕 [DEBUG] Unsubscribing from all chatrooms...');
+    
+    if (window.globalChatroomSubscriptions) {
+      window.globalChatroomSubscriptions.forEach((subscription, chatroomId) => {
+        console.log(`🔕 [DEBUG] Unsubscribing from chatroom ${chatroomId}`);
+        subscription.unsubscribe();
+      });
+      window.globalChatroomSubscriptions.clear();
+    }
+  }, []);
+
+  // Subscribe to new chatrooms when conversations list updates
+  useEffect(() => {
+    if (isAuthenticated && !authLoading && (conversations || []).length > 0 && webSocketService?.isConnected()) {
+      // Subscribe to any new chatrooms
+      subscribeToAllChatrooms();
+    }
+    
+    return () => {
+      // Cleanup when conversations change
+      unsubscribeFromAllChatrooms();
+    };
+  }, [conversations, isAuthenticated, authLoading, subscribeToAllChatrooms, unsubscribeFromAllChatrooms, webSocketService]);
 
   const value = {
     // State
